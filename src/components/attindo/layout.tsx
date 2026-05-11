@@ -1,56 +1,61 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { useTheme } from "next-themes";
 import {
   LayoutDashboard,
   Users,
+  Building2,
   Wifi,
   Clock,
   CalendarClock,
   Banknote,
+  Settings,
   Moon,
   Sun,
   Database,
   RefreshCw,
+  Languages,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAppStore } from "@/store/app-store";
 import { useSocket } from "@/hooks/use-socket";
+import { useTranslation } from "@/hooks/use-translation";
 import { DashboardView } from "./dashboard";
 import { EmployeesView } from "./employees";
+import { DepartmentsView } from "./departments";
 import { DevicesView } from "./devices";
 import { AttendanceView } from "./attendance";
 import { ShiftsView } from "./shifts";
 import { PayrollView } from "./payroll";
+import { SettingsView } from "./settings";
 
-const APP_VERSION = "v1.16.0";
-
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "employees", label: "Employees", icon: Users },
-  { id: "devices", label: "Devices", icon: Wifi },
-  { id: "attendance", label: "Attendance", icon: Clock },
-  { id: "shifts", label: "Shifts", icon: CalendarClock },
-  { id: "payroll", label: "Payroll", icon: Banknote },
-];
+const APP_VERSION = "v2.0.0";
 
 export function AttindoLayout() {
-  const { activeTab, setActiveTab, syncProgress, isGlobalSyncing } = useAppStore();
+  const { activeTab, setActiveTab, syncProgress, isGlobalSyncing, lang, setLang } = useAppStore();
   const { theme, setTheme } = useTheme();
   const { isConnected } = useSocket();
+  const { t, isRtl } = useTranslation();
+
   const mounted = React.useSyncExternalStore(
     () => () => {},
     () => true,
     () => false
   );
 
-  // Auto-sync is disabled by default to prevent issues in dev environments
-  // where no real devices are connected. In production with real ZKTeco devices,
-  // the user can trigger sync manually or enable auto-sync in settings.
-  // The sync process runs in the background and is non-blocking.
+  const navItems = [
+    { id: "dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
+    { id: "employees", label: t("nav.employees"), icon: Users },
+    { id: "departments", label: t("nav.departments"), icon: Building2 },
+    { id: "devices", label: t("nav.devices"), icon: Wifi },
+    { id: "attendance", label: t("nav.attendance"), icon: Clock },
+    { id: "shifts", label: t("nav.shifts"), icon: CalendarClock },
+    { id: "payroll", label: t("nav.payroll"), icon: Banknote },
+    { id: "settings", label: t("nav.settings"), icon: Settings },
+  ];
 
   const handleSeed = async () => {
     try {
@@ -69,6 +74,8 @@ export function AttindoLayout() {
         return <DashboardView />;
       case "employees":
         return <EmployeesView />;
+      case "departments":
+        return <DepartmentsView />;
       case "devices":
         return <DevicesView />;
       case "attendance":
@@ -77,6 +84,8 @@ export function AttindoLayout() {
         return <ShiftsView />;
       case "payroll":
         return <PayrollView />;
+      case "settings":
+        return <SettingsView />;
       default:
         return <DashboardView />;
     }
@@ -86,7 +95,7 @@ export function AttindoLayout() {
   const activeSyncs = syncEntries.filter((s) => s.status === "running");
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background" dir={isRtl ? "rtl" : "ltr"}>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-14 items-center px-4 gap-3">
@@ -96,9 +105,9 @@ export function AttindoLayout() {
               A
             </div>
             <div className="hidden sm:flex flex-col">
-              <span className="font-bold text-sm leading-tight">Attindo</span>
+              <span className="font-bold text-sm leading-tight">{t("app.name")}</span>
               <span className="text-[10px] text-muted-foreground leading-tight">
-                HR, Payroll & Attendance
+                {t("app.subtitle")}
               </span>
             </div>
           </div>
@@ -114,7 +123,7 @@ export function AttindoLayout() {
           {isGlobalSyncing && (
             <div className="hidden md:flex items-center gap-2 text-xs text-emerald-600">
               <RefreshCw className="h-3 w-3 animate-spin" />
-              <span>Syncing...</span>
+              <span>{t("syncing")}</span>
             </div>
           )}
 
@@ -147,7 +156,7 @@ export function AttindoLayout() {
               }`}
             />
             <span className="text-[10px] text-muted-foreground">
-              {isConnected ? "Live" : "Offline"}
+              {isConnected ? t("live") : t("offline")}
             </span>
           </div>
 
@@ -159,7 +168,18 @@ export function AttindoLayout() {
             className="hidden sm:inline-flex h-7 text-xs gap-1"
           >
             <Database className="h-3 w-3" />
-            Seed Data
+            {t("seed.data")}
+          </Button>
+
+          {/* Language Toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+          >
+            <Languages className="h-3 w-3" />
+            {lang === "ar" ? "EN" : "عربي"}
           </Button>
 
           {/* Dark mode toggle */}
@@ -197,7 +217,7 @@ export function AttindoLayout() {
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 shrink-0" />
                   {item.label}
                 </button>
               );
@@ -220,7 +240,7 @@ export function AttindoLayout() {
 
       {/* Mobile Bottom Tab Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-around h-14">
+        <div className="flex items-center justify-around h-14 overflow-x-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -228,14 +248,14 @@ export function AttindoLayout() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2 text-[10px] font-medium transition-colors ${
+                className={`flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 text-[9px] font-medium transition-colors min-w-[44px] ${
                   isActive
                     ? "text-emerald-600"
                     : "text-muted-foreground"
                 }`}
               >
-                <Icon className={`h-5 w-5 ${isActive ? "text-emerald-600" : ""}`} />
-                {item.label}
+                <Icon className={`h-4 w-4 ${isActive ? "text-emerald-600" : ""}`} />
+                <span className="truncate max-w-[50px]">{item.label}</span>
               </button>
             );
           })}
@@ -245,7 +265,7 @@ export function AttindoLayout() {
       {/* Footer (desktop) */}
       <footer className="hidden md:block border-t py-3 px-4 mt-auto">
         <div className="text-center text-xs text-muted-foreground">
-          &copy; 2024-2025 Attindo {APP_VERSION} &mdash; HR, Payroll &amp; Attendance &bull; Official ZKTeco Support
+          {t("copyright")}
         </div>
       </footer>
     </div>

@@ -46,6 +46,17 @@ export async function POST(request: NextRequest) {
         include: {
           salaryStructure: true,
           shift: true,
+          schedules: {
+            where: {
+              effectiveDate: { lte: period.endDate },
+              OR: [
+                { endDate: null },
+                { endDate: { gte: period.startDate } },
+              ],
+            },
+            include: { shift: true },
+            orderBy: { effectiveDate: "desc" },
+          },
           allowances: {
             where: {
               isRecurring: true,
@@ -66,6 +77,9 @@ export async function POST(request: NextRequest) {
               ],
             },
           },
+          loans: {
+            where: { status: "active" },
+          },
         },
       });
 
@@ -73,7 +87,7 @@ export async function POST(request: NextRequest) {
       const periodEnd = new Date(period.endDate);
 
       let totalGross = 0;
-      let totalDeductions = 0;
+      let totalDeductionsAll = 0;
       let totalNet = 0;
       let processedCount = 0;
       let skippedCount = 0;
@@ -88,12 +102,13 @@ export async function POST(request: NextRequest) {
 
         const struct = employee.salaryStructure;
 
-        // Calculate attendance for this employee in this period
+        // Calculate attendance for this employee in the period
         const attendance = await calculateAttendance(
           employee.id,
           periodStart,
           periodEnd,
-          employee.shift
+          employee.shift,
+          employee.schedules
         );
 
         // Calculate custom allowances
@@ -126,9 +141,19 @@ export async function POST(request: NextRequest) {
         const absentDeductions = attendance.absentDays * struct.deductionPerAbsent;
         const overtimePay = attendance.overtimeHours * struct.overtimeRate;
 
+        // Loan deductions: sum of monthlyDeduction from active loans
+        let loanDeduction = 0;
+        for (const loan of employee.loans) {
+          loanDeduction += loan.monthlyDeduction;
+          // Don't deduct more than remaining balance
+          if (loanDeduction > loan.remainingBalance) {
+            loanDeduction = loan.remainingBalance;
+          }
+        }
+
         const totalDeductionsAmount = lateDeductions + absentDeductions + customDeductions;
 
-        const netSalary = basicSalary + totalAllowances + overtimePay - totalDeductionsAmount;
+        const netSalary = basicSalary + totalAllowances + overtimePay - totalDeductionsAmount - loanDeduction;
 
         // Create or update pay slip using upsert
         try {
@@ -145,6 +170,7 @@ export async function POST(request: NextRequest) {
               basicSalary,
               totalAllowances,
               totalDeductions: totalDeductionsAmount,
+              loanDeduction,
               overtimePay,
               netSalary,
               workingDays: attendance.workingDays,
@@ -157,6 +183,7 @@ export async function POST(request: NextRequest) {
               basicSalary,
               totalAllowances,
               totalDeductions: totalDeductionsAmount,
+              loanDeduction,
               overtimePay,
               netSalary,
               workingDays: attendance.workingDays,
@@ -168,12 +195,27 @@ export async function POST(request: NextRequest) {
           });
 
           totalGross += basicSalary + totalAllowances + overtimePay;
-          totalDeductions += totalDeductionsAmount;
+          totalDeductionsAll += totalDeductionsAmount + loanDeduction;
           totalNet += netSalary;
           processedCount++;
         } catch (slipError: unknown) {
           const errMsg = slipError instanceof Error ? slipError.message : "Unknown error";
           errors.push(`Failed to process pay slip for ${employee.name}: ${errMsg}`);
+        }
+      }
+
+      // Update loan remainingBalances after processing
+      for (const employee of employees) {
+        for (const loan of employee.loans) {
+          const deduction = Math.min(loan.monthlyDeduction, loan.remainingBalance);
+          const newBalance = loan.remainingBalance - deduction;
+          await db.loan.update({
+            where: { id: loan.id },
+            data: {
+              remainingBalance: Math.max(0, newBalance),
+              ...(newBalance <= 0 && { status: "completed" }),
+            },
+          });
         }
       }
 
@@ -183,7 +225,7 @@ export async function POST(request: NextRequest) {
         data: {
           status: "completed",
           totalGross,
-          totalDeductions,
+          totalDeductions: totalDeductionsAll,
           totalNet,
           processedAt: new Date(),
         },
@@ -196,7 +238,7 @@ export async function POST(request: NextRequest) {
           processedCount,
           skippedCount,
           totalGross,
-          totalDeductions,
+          totalDeductions: totalDeductionsAll,
           totalNet,
           errors: errors.length > 0 ? errors : undefined,
         },
@@ -221,11 +263,24 @@ async function calculateAttendance(
   periodStart: Date,
   periodEnd: Date,
   shift: {
+    id: string;
     startTime: string;
     endTime: string;
     gracePeriod: number;
     isOvernight: boolean;
-  } | null
+  } | null,
+  schedules: {
+    id: string;
+    dayOfWeek: number | null;
+    isOffDay: boolean;
+    shift: {
+      id: string;
+      startTime: string;
+      endTime: string;
+      gracePeriod: number;
+      isOvernight: boolean;
+    };
+  }[]
 ) {
   // Get all attendance logs for this employee in the period
   const logs = await db.attendanceLog.findMany({
@@ -239,15 +294,42 @@ async function calculateAttendance(
     orderBy: { timestamp: "asc" },
   });
 
-  // Calculate working days in the period (exclude Fridays = day 5 in Saudi Arabia)
+  // Build a schedule map: dayOfWeek -> schedule info
+  const scheduleMap = new Map<number, { isOffDay: boolean; shift: { startTime: string; endTime: string; gracePeriod: number; isOvernight: boolean } } | null>();
+  for (const schedule of schedules) {
+    if (schedule.dayOfWeek !== null) {
+      scheduleMap.set(schedule.dayOfWeek, { isOffDay: schedule.isOffDay, shift: schedule.shift });
+    }
+  }
+
+  // Check if there's a generic schedule (dayOfWeek = null)
+  const genericSchedule = schedules.find((s) => s.dayOfWeek === null);
+
+  // Calculate working days in the period
   let workingDays = 0;
   const current = new Date(periodStart);
   while (current <= periodEnd) {
     const dayOfWeek = current.getDay();
-    // Friday = 5, exclude it
-    if (dayOfWeek !== 5) {
-      workingDays++;
+
+    // Check schedule for this day
+    const daySchedule = scheduleMap.get(dayOfWeek);
+    if (daySchedule) {
+      // Specific day schedule exists
+      if (!daySchedule.isOffDay) {
+        workingDays++;
+      }
+    } else if (genericSchedule) {
+      // Use generic schedule
+      if (!genericSchedule.isOffDay) {
+        workingDays++;
+      }
+    } else {
+      // Default: exclude Fridays (5) and Saturdays (6) as off days
+      if (dayOfWeek !== 5 && dayOfWeek !== 6) {
+        workingDays++;
+      }
     }
+
     current.setDate(current.getDate() + 1);
   }
 
@@ -266,13 +348,33 @@ async function calculateAttendance(
   let lateDays = 0;
   let totalOvertimeHours = 0;
 
-  // Check each working day
+  // Check each day in the period
   const dayIterator = new Date(periodStart);
   while (dayIterator <= periodEnd) {
     const dayOfWeek = dayIterator.getDay();
 
-    // Skip Fridays
-    if (dayOfWeek === 5) {
+    // Determine if this is a working day
+    const daySchedule = scheduleMap.get(dayOfWeek);
+    let isOffDay = false;
+    let effectiveShift = shift;
+
+    if (daySchedule) {
+      isOffDay = daySchedule.isOffDay;
+      if (!isOffDay) {
+        effectiveShift = daySchedule.shift;
+      }
+    } else if (genericSchedule) {
+      isOffDay = genericSchedule.isOffDay;
+      if (!isOffDay) {
+        effectiveShift = genericSchedule.shift;
+      }
+    } else {
+      // Default: Friday and Saturday are off days
+      isOffDay = dayOfWeek === 5 || dayOfWeek === 6;
+    }
+
+    // Skip off days
+    if (isOffDay) {
       dayIterator.setDate(dayIterator.getDate() + 1);
       continue;
     }
@@ -290,12 +392,15 @@ async function calculateAttendance(
       const checkIns = dayLogs.filter((l) => l.ioMode === 0);
       const checkOuts = dayLogs.filter((l) => l.ioMode === 1);
 
+      // Determine the effective shift for this day
+      const shiftToUse = effectiveShift || shift;
+
       // Check for late arrival
-      if (checkIns.length > 0 && shift) {
+      if (checkIns.length > 0 && shiftToUse) {
         const firstCheckIn = checkIns[0].timestamp;
-        const [shiftHours, shiftMinutes] = shift.startTime.split(":").map(Number);
+        const [shiftHours, shiftMinutes] = shiftToUse.startTime.split(":").map(Number);
         const shiftStart = new Date(dayIterator);
-        shiftStart.setHours(shiftHours, shiftMinutes + shift.gracePeriod, 0, 0);
+        shiftStart.setHours(shiftHours, shiftMinutes + shiftToUse.gracePeriod, 0, 0);
 
         if (firstCheckIn > shiftStart) {
           lateDays++;
@@ -303,12 +408,12 @@ async function calculateAttendance(
       }
 
       // Calculate overtime (check-outs after shift end)
-      if (checkOuts.length > 0 && shift) {
+      if (checkOuts.length > 0 && shiftToUse) {
         const lastCheckOut = checkOuts[checkOuts.length - 1].timestamp;
-        const [endHours, endMinutes] = shift.endTime.split(":").map(Number);
+        const [endHours, endMinutes] = shiftToUse.endTime.split(":").map(Number);
         const shiftEnd = new Date(dayIterator);
 
-        if (shift.isOvernight) {
+        if (shiftToUse.isOvernight) {
           // Overnight shift: end time is next day
           shiftEnd.setDate(shiftEnd.getDate() + 1);
         }

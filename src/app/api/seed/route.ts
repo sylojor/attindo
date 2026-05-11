@@ -13,6 +13,33 @@ export async function POST() {
       );
     }
 
+    // ── Create Default Settings ──
+    await db.settings.create({
+      data: {
+        id: "default",
+        currency: "SAR",
+        lang: "ar",
+        companyName: "Attindo",
+        companyNameAr: "أتندو",
+      },
+    });
+
+    // ── Create Departments ──
+    const departmentData = [
+      { name: "Engineering", nameAr: "الهندسة", manager: "Ahmed Al-Rashid" },
+      { name: "HR", nameAr: "الموارد البشرية", manager: "Sara Al-Otaibi" },
+      { name: "Finance", nameAr: "المالية", manager: "Noura Al-Farsi" },
+      { name: "Marketing", nameAr: "التسويق", manager: "Layla Al-Dosari" },
+      { name: "Operations", nameAr: "العمليات", manager: "Yusuf Al-Shammari" },
+      { name: "IT Support", nameAr: "دعم تقنية المعلومات", manager: "Ali Al-Zahrani" },
+    ];
+
+    const departments = await Promise.all(
+      departmentData.map((d) => db.department.create({ data: d }))
+    );
+
+    const departmentMap = new Map(departments.map((d) => [d.name, d.id]));
+
     // ── Create Shifts ──
     const shifts = await Promise.all([
       db.shift.create({
@@ -52,29 +79,31 @@ export async function POST() {
 
     // ── Create Employees ──
     const employeeData = [
-      { employeeId: "EMP-001", name: "Ahmed Al-Rashid", nameAr: "أحمد الراشد", department: "Engineering", position: "Senior Developer", phone: "+966501001001", email: "ahmed@attindo.com", fingerprintId: 1 },
-      { employeeId: "EMP-002", name: "Fatima Hassan", nameAr: "فاطمة حسن", department: "Engineering", position: "Frontend Developer", phone: "+966501001002", email: "fatima@attindo.com", fingerprintId: 2 },
-      { employeeId: "EMP-003", name: "Mohammed Al-Said", nameAr: "محمد السعيد", department: "Engineering", position: "Backend Developer", phone: "+966501001003", email: "mohammed@attindo.com", fingerprintId: 3 },
-      { employeeId: "EMP-004", name: "Sara Al-Otaibi", nameAr: "سارة العتيبي", department: "HR", position: "HR Manager", phone: "+966501001004", email: "sara@attindo.com", fingerprintId: 4 },
-      { employeeId: "EMP-005", name: "Khalid Mansour", nameAr: "خالد منصور", department: "HR", position: "Recruitment Specialist", phone: "+966501001005", email: "khalid@attindo.com", fingerprintId: 5 },
-      { employeeId: "EMP-006", name: "Noura Al-Farsi", nameAr: "نورة الفارسي", department: "Finance", position: "Accountant", phone: "+966501001006", email: "noura@attindo.com", fingerprintId: 6 },
-      { employeeId: "EMP-007", name: "Omar Al-Qahtani", nameAr: "عمر القحطاني", department: "Finance", position: "Financial Analyst", phone: "+966501001007", email: "omar@attindo.com", fingerprintId: 7 },
-      { employeeId: "EMP-008", name: "Layla Al-Dosari", nameAr: "ليلى الدوسري", department: "Marketing", position: "Marketing Manager", phone: "+966501001008", email: "layla@attindo.com", fingerprintId: 8 },
-      { employeeId: "EMP-009", name: "Yusuf Al-Shammari", nameAr: "يوسف الشمري", department: "Operations", position: "Operations Manager", phone: "+966501001009", email: "yusuf@attindo.com", fingerprintId: 9 },
-      { employeeId: "EMP-010", name: "Huda Al-Mutairi", nameAr: "هدى المطيري", department: "Engineering", position: "QA Engineer", phone: "+966501001010", email: "huda@attindo.com", fingerprintId: 10 },
-      { employeeId: "EMP-011", name: "Ali Al-Zahrani", nameAr: "علي الزهراني", department: "IT Support", position: "IT Specialist", phone: "+966501001011", email: "ali@attindo.com", fingerprintId: 11 },
-      { employeeId: "EMP-012", name: "Rania Al-Ghamdi", nameAr: "رانيا الغامدي", department: "Marketing", position: "Content Creator", phone: "+966501001012", email: "rania@attindo.com", fingerprintId: 12 },
+      { employeeId: "EMP-001", name: "Ahmed Al-Rashid", nameAr: "أحمد الراشد", departmentName: "Engineering", position: "Senior Developer", phone: "+966501001001", email: "ahmed@attindo.com", fingerprintId: 1 },
+      { employeeId: "EMP-002", name: "Fatima Hassan", nameAr: "فاطمة حسن", departmentName: "Engineering", position: "Frontend Developer", phone: "+966501001002", email: "fatima@attindo.com", fingerprintId: 2 },
+      { employeeId: "EMP-003", name: "Mohammed Al-Said", nameAr: "محمد السعيد", departmentName: "Engineering", position: "Backend Developer", phone: "+966501001003", email: "mohammed@attindo.com", fingerprintId: 3 },
+      { employeeId: "EMP-004", name: "Sara Al-Otaibi", nameAr: "سارة العتيبي", departmentName: "HR", position: "HR Manager", phone: "+966501001004", email: "sara@attindo.com", fingerprintId: 4 },
+      { employeeId: "EMP-005", name: "Khalid Mansour", nameAr: "خالد منصور", departmentName: "HR", position: "Recruitment Specialist", phone: "+966501001005", email: "khalid@attindo.com", fingerprintId: 5 },
+      { employeeId: "EMP-006", name: "Noura Al-Farsi", nameAr: "نورة الفارسي", departmentName: "Finance", position: "Accountant", phone: "+966501001006", email: "noura@attindo.com", fingerprintId: 6 },
+      { employeeId: "EMP-007", name: "Omar Al-Qahtani", nameAr: "عمر القحطاني", departmentName: "Finance", position: "Financial Analyst", phone: "+966501001007", email: "omar@attindo.com", fingerprintId: 7 },
+      { employeeId: "EMP-008", name: "Layla Al-Dosari", nameAr: "ليلى الدوسري", departmentName: "Marketing", position: "Marketing Manager", phone: "+966501001008", email: "layla@attindo.com", fingerprintId: 8 },
+      { employeeId: "EMP-009", name: "Yusuf Al-Shammari", nameAr: "يوسف الشمري", departmentName: "Operations", position: "Operations Manager", phone: "+966501001009", email: "yusuf@attindo.com", fingerprintId: 9 },
+      { employeeId: "EMP-010", name: "Huda Al-Mutairi", nameAr: "هدى المطيري", departmentName: "Engineering", position: "QA Engineer", phone: "+966501001010", email: "huda@attindo.com", fingerprintId: 10 },
+      { employeeId: "EMP-011", name: "Ali Al-Zahrani", nameAr: "علي الزهراني", departmentName: "IT Support", position: "IT Specialist", phone: "+966501001011", email: "ali@attindo.com", fingerprintId: 11 },
+      { employeeId: "EMP-012", name: "Rania Al-Ghamdi", nameAr: "رانيا الغامدي", departmentName: "Marketing", position: "Content Creator", phone: "+966501001012", email: "rania@attindo.com", fingerprintId: 12 },
     ];
 
     const employees = await Promise.all(
-      employeeData.map((emp, index) =>
-        db.employee.create({
+      employeeData.map((emp, index) => {
+        const { departmentName, ...rest } = emp;
+        return db.employee.create({
           data: {
-            ...emp,
+            ...rest,
+            departmentId: departmentMap.get(departmentName) || null,
             shiftId: shifts[index % shifts.length].id,
           },
-        })
-      )
+        });
+      })
     );
 
     // ── Create Devices ──
@@ -278,6 +307,34 @@ export async function POST() {
       });
     }
 
+    // ── Create Sample Loans ──
+    const loanData = [
+      { employeeIdx: 0, type: "advance" as const, amount: 3000, monthlyDeduction: 500, notes: "Personal advance - سلفة شخصية" },
+      { employeeIdx: 3, type: "loan" as const, amount: 10000, monthlyDeduction: 1000, notes: "Education loan - قرض تعليمي" },
+      { employeeIdx: 5, type: "advance" as const, amount: 2000, monthlyDeduction: 400, notes: "Emergency advance - سلفة طارئة" },
+      { employeeIdx: 8, type: "loan" as const, amount: 15000, monthlyDeduction: 1500, notes: "Housing loan - قرض سكني" },
+      { employeeIdx: 1, type: "advance" as const, amount: 1500, monthlyDeduction: 300, notes: "Medical advance - سلفة طبية" },
+    ];
+
+    const loans = [];
+    for (const loanInfo of loanData) {
+      const emp = employees[loanInfo.employeeIdx];
+      if (!emp) continue;
+      const loan = await db.loan.create({
+        data: {
+          employeeId: emp.id,
+          type: loanInfo.type,
+          amount: loanInfo.amount,
+          monthlyDeduction: loanInfo.monthlyDeduction,
+          remainingBalance: loanInfo.amount,
+          issueDate: new Date(),
+          status: "active",
+          notes: loanInfo.notes,
+        },
+      });
+      loans.push(loan);
+    }
+
     // ── Create Payroll Period for Current Month ──
     const currentMonth = now.getMonth() + 1; // 1-12
     const currentYear = now.getFullYear();
@@ -322,7 +379,7 @@ export async function POST() {
       const dayIterator = new Date(periodStart);
       while (dayIterator <= periodEnd) {
         const dayOfWeek = dayIterator.getDay();
-        if (dayOfWeek !== 5) { // Exclude Friday
+        if (dayOfWeek !== 5 && dayOfWeek !== 6) { // Exclude Friday & Saturday
           workingDays++;
           // Simulate: 85% present, 15% absent
           if (Math.random() < 0.85) {
@@ -342,11 +399,19 @@ export async function POST() {
       const fixedAllowances = salary.housingAllowance + salary.transportAllowance +
         salary.foodAllowance + salary.otherAllowances;
       const totalAllowances = fixedAllowances;
-      const lateDeductions = lateDays * salary.deductionPerLate;
-      const absentDeductions = absentDays * salary.deductionPerAbsent;
+      const lateDeductionAmount = lateDays * salary.deductionPerLate;
+      const absentDeductionAmount = absentDays * salary.deductionPerAbsent;
       const overtimePay = overtimeHours * salary.overtimeRate;
-      const totalDeductionsAmount = lateDeductions + absentDeductions;
-      const netSalary = salary.basicSalary + totalAllowances + overtimePay - totalDeductionsAmount;
+
+      // Get loan deduction for this employee
+      const empLoans = loans.filter((l) => l.employeeId === emp.id);
+      let loanDeduction = 0;
+      for (const loan of empLoans) {
+        loanDeduction += loan.monthlyDeduction;
+      }
+
+      const totalDeductionsAmount = lateDeductionAmount + absentDeductionAmount;
+      const netSalary = salary.basicSalary + totalAllowances + overtimePay - totalDeductionsAmount - loanDeduction;
 
       await db.paySlip.create({
         data: {
@@ -355,6 +420,7 @@ export async function POST() {
           basicSalary: salary.basicSalary,
           totalAllowances,
           totalDeductions: totalDeductionsAmount,
+          loanDeduction,
           overtimePay,
           netSalary,
           workingDays,
@@ -367,7 +433,7 @@ export async function POST() {
       });
 
       totalGross += salary.basicSalary + totalAllowances + overtimePay;
-      totalDeductions += totalDeductionsAmount;
+      totalDeductions += totalDeductionsAmount + loanDeduction;
       totalNet += netSalary;
     }
 
@@ -385,12 +451,15 @@ export async function POST() {
     return NextResponse.json({
       message: "Database seeded successfully",
       data: {
+        settings: 1,
+        departments: departments.length,
         employees: employees.length,
         devices: devices.length,
         shifts: shifts.length,
         schedules: employees.length,
         attendanceDays: 7,
         salaryStructures: employees.length,
+        loans: loans.length,
         payrollPeriod: payrollPeriod.name,
       },
     }, { status: 201 });

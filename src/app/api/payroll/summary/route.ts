@@ -41,7 +41,7 @@ export async function GET() {
       include: {
         employee: {
           select: {
-            department: true,
+            department: { select: { id: true, name: true, nameAr: true } },
           },
         },
       },
@@ -49,7 +49,7 @@ export async function GET() {
 
     const departmentMap = new Map<string, { count: number; totalBasic: number; totalAllowances: number }>();
     for (const ss of salaryStructures) {
-      const dept = ss.employee.department || "Unassigned";
+      const dept = ss.employee.department?.name || "Unassigned";
       const existing = departmentMap.get(dept) || { count: 0, totalBasic: 0, totalAllowances: 0 };
       existing.count++;
       existing.totalBasic += ss.basicSalary;

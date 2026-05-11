@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "20", 10);
     const search = searchParams.get("search") || "";
+    const departmentId = searchParams.get("departmentId") || "";
     const department = searchParams.get("department") || "";
     const isActiveParam = searchParams.get("isActive");
 
@@ -30,8 +31,10 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    if (department) {
-      where.department = department;
+    if (departmentId) {
+      where.departmentId = departmentId;
+    } else if (department) {
+      where.department = { name: department };
     }
 
     const [employees, total] = await Promise.all([
@@ -39,6 +42,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           shift: true,
+          department: true,
         },
         skip,
         take: limit,
@@ -64,7 +68,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { employeeId, name, nameAr, department, position, phone, email, fingerprintId, shiftId } = body;
+    const { employeeId, name, nameAr, departmentId, position, phone, email, fingerprintId, shiftId } = body;
 
     // Validate required fields
     if (!employeeId || !name) {
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
         employeeId,
         name,
         nameAr: nameAr || null,
-        department: department || null,
+        departmentId: departmentId || null,
         position: position || null,
         phone: phone || null,
         email: email || null,
@@ -126,6 +130,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         shift: true,
+        department: true,
       },
     });
 

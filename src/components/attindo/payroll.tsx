@@ -76,10 +76,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/hooks/use-translation";
+import { useAppStore } from "@/store/app-store";
 
 // ─── Helpers ───
-function formatCurrency(amount: number): string {
-  return `SAR ${amount.toLocaleString("en-US", {
+function formatCurrency(amount: number, currency = "SAR"): string {
+  return `${currency} ${amount.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -341,10 +343,288 @@ function SalaryGrossPreview({ control }: { control: Control<SalaryFormValues> })
   );
 }
 
+// ─── Loans Tab Component ───
+interface LoanItem {
+  id: string;
+  employeeId: string;
+  type: string;
+  amount: number;
+  monthlyDeduction: number;
+  remainingBalance: number;
+  issueDate: string;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  employee: { id: string; employeeId: string; name: string; nameAr: string | null };
+}
+
+function LoansTab() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { t } = useTranslation();
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data: loans = [], isLoading } = useQuery<LoanItem[]>({
+    queryKey: ["loans"],
+    queryFn: async () => {
+      const res = await fetch("/api/payroll/loans");
+      if (!res.ok) throw new Error("Failed to fetch loans");
+      return res.json();
+    },
+  });
+
+  const { data: employees = [] } = useQuery<EmployeeOption[]>({
+    queryKey: ["payroll-employees-loans"],
+    queryFn: async () => {
+      const res = await fetch("/api/employees?limit=100&isActive=true");
+      if (!res.ok) return [];
+      const d = await res.json();
+      return d.employees || [];
+    },
+  });
+
+  const loanSchema = z.object({
+    employeeId: z.string().min(1, "Employee is required"),
+    type: z.string().default("advance"),
+    amount: z.coerce.number().min(1, "Amount must be positive"),
+    monthlyDeduction: z.coerce.number().min(0).default(0),
+    notes: z.string().optional().default(""),
+  });
+
+  type LoanFormValues = z.infer<typeof loanSchema>;
+
+  const addForm = useForm<LoanFormValues>({
+    resolver: zodResolver(loanSchema),
+    defaultValues: { employeeId: "", type: "advance", amount: 0, monthlyDeduction: 0, notes: "" },
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (values: LoanFormValues) => {
+      const res = await fetch("/api/payroll/loans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create loan");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["loans"] });
+      setAddOpen(false);
+      addForm.reset();
+      toast({ title: t("loans.loanCreated") });
+    },
+    onError: (error: Error) => {
+      toast({ title: t("common.error"), description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/payroll/loans/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete loan");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["loans"] });
+      setDeleteId(null);
+      toast({ title: t("loans.loanDeleted") });
+    },
+    onError: () => {
+      toast({ title: t("common.error"), description: "Failed to delete loan", variant: "destructive" });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await fetch(`/api/payroll/loans/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update loan status");
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["loans"] });
+      toast({ title: variables.status === "completed" ? t("loans.loanCompleted") : t("loans.loanCancelled") });
+    },
+    onError: () => {
+      toast({ title: t("common.error"), description: "Failed to update loan", variant: "destructive" });
+    },
+  });
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, string> = {
+      active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+      completed: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
+      cancelled: "bg-muted text-muted-foreground",
+    };
+    return <Badge className={`text-xs ${map[status] || map.active}`}>{t(`loans.${status}`)}</Badge>;
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">{t("loans.title")}</h2>
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("loans.add")}
+          </Button>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("loans.add")}</DialogTitle>
+              <DialogDescription>{t("loans.addDesc")}</DialogDescription>
+            </DialogHeader>
+            <Form {...addForm}>
+              <form onSubmit={addForm.handleSubmit((v) => addMutation.mutate(v))} className="space-y-4">
+                <FormField control={addForm.control} name="employeeId" render={({ field }) => (
+                  <FormItem><FormLabel>{t("loans.employee")} *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder={t("loans.selectEmployee")} /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {employees.map((e) => (<SelectItem key={e.id} value={e.id}>{e.name} ({e.employeeId})</SelectItem>))}
+                      </SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
+                <FormField control={addForm.control} name="type" render={({ field }) => (
+                  <FormItem><FormLabel>{t("loans.type")}</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="advance">{t("loans.advance")}</SelectItem>
+                        <SelectItem value="loan">{t("loans.loan")}</SelectItem>
+                      </SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={addForm.control} name="amount" render={({ field }) => (
+                    <FormItem><FormLabel>{t("loans.amount")} *</FormLabel><FormControl><Input type="number" min={1} {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={addForm.control} name="monthlyDeduction" render={({ field }) => (
+                    <FormItem><FormLabel>{t("loans.monthlyDeduction")}</FormLabel><FormControl><Input type="number" min={0} {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <FormField control={addForm.control} name="notes" render={({ field }) => (
+                  <FormItem><FormLabel>{t("loans.notes")}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>{t("common.cancel")}</Button>
+                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={addMutation.isPending}>
+                    {addMutation.isPending ? t("loans.creating") : t("loans.create")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loans.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Banknote className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="font-semibold mb-1">{t("loans.noLoans")}</h3>
+          <p className="text-sm text-muted-foreground">{t("loans.noLoansDesc")}</p>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="max-h-[calc(100vh-320px)] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("loans.employee")}</TableHead>
+                    <TableHead>{t("loans.type")}</TableHead>
+                    <TableHead className="text-right">{t("loans.amount")}</TableHead>
+                    <TableHead className="text-right hidden sm:table-cell">{t("loans.monthlyDeduction")}</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">{t("loans.remainingBalance")}</TableHead>
+                    <TableHead>{t("loans.status")}</TableHead>
+                    <TableHead className="w-24">{t("loans.actions")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loans.map((loan) => (
+                    <TableRow key={loan.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-sm">{loan.employee.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{loan.employee.employeeId}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {loan.type === "advance" ? t("loans.advance") : t("loans.loan")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium">
+                        {formatCurrency(loan.amount)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm hidden sm:table-cell">
+                        {formatCurrency(loan.monthlyDeduction)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm hidden md:table-cell">
+                        {formatCurrency(loan.remainingBalance)}
+                      </TableCell>
+                      <TableCell>{statusBadge(loan.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {loan.status === "active" && (
+                            <>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs text-emerald-600" onClick={() => updateStatusMutation.mutate({ id: loan.id, status: "completed" })}>
+                                {t("loans.markCompleted")}
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => updateStatusMutation.mutate({ id: loan.id, status: "cancelled" })}>
+                                {t("loans.markCancelled")}
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(loan.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("loans.deleteLoan")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("loans.deleteLoanDesc")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (deleteId) deleteMutation.mutate(deleteId); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 // ─── Main Component ───
 export function PayrollView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [activeSubTab, setActiveSubTab] = useState("salary-setup");
 
   // ─── Queries: shared ───
@@ -885,26 +1165,30 @@ export function PayrollView() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Banknote className="h-5 w-5 text-emerald-600" />
-        <h1 className="text-xl font-bold">Payroll Management</h1>
+        <h1 className="text-xl font-bold">{t("payroll.title")}</h1>
       </div>
 
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="salary-setup" className="gap-1.5">
             <Settings2 className="h-3.5 w-3.5" />
-            Salary Setup
+            {t("payroll.salarySetup")}
           </TabsTrigger>
           <TabsTrigger value="payroll-runs" className="gap-1.5">
             <CalendarDays className="h-3.5 w-3.5" />
-            Payroll Runs
+            {t("payroll.payrollRuns")}
           </TabsTrigger>
           <TabsTrigger value="pay-slips" className="gap-1.5">
             <Receipt className="h-3.5 w-3.5" />
-            Pay Slips
+            {t("payroll.paySlips")}
           </TabsTrigger>
           <TabsTrigger value="allowances-deductions" className="gap-1.5">
             <DollarSign className="h-3.5 w-3.5" />
-            Allowances & Deductions
+            {t("payroll.allowancesDeductions")}
+          </TabsTrigger>
+          <TabsTrigger value="loans" className="gap-1.5">
+            <Banknote className="h-3.5 w-3.5" />
+            {t("payroll.loans")}
           </TabsTrigger>
         </TabsList>
 
@@ -1535,6 +1819,13 @@ export function PayrollView() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* SUB-TAB 5: LOANS / ADVANCES                               */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        <TabsContent value="loans" className="space-y-4 mt-4">
+          <LoansTab />
         </TabsContent>
       </Tabs>
 

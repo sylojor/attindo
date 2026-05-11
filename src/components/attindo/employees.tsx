@@ -40,7 +40,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -68,14 +67,15 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/hooks/use-translation";
 
-// Types
 interface Employee {
   id: string;
   employeeId: string;
   name: string;
   nameAr: string | null;
-  department: string | null;
+  departmentId: string | null;
+  department: { id: string; name: string; nameAr: string | null } | null;
   position: string | null;
   phone: string | null;
   email: string | null;
@@ -100,6 +100,12 @@ interface Shift {
   color: string;
 }
 
+interface Department {
+  id: string;
+  name: string;
+  nameAr: string | null;
+}
+
 interface EmployeesResponse {
   employees: Employee[];
   total: number;
@@ -108,12 +114,11 @@ interface EmployeesResponse {
   totalPages: number;
 }
 
-// Zod schemas
 const employeeSchema = z.object({
   employeeId: z.string().min(1, "Employee ID is required"),
   name: z.string().min(1, "Name is required"),
   nameAr: z.string().optional().default(""),
-  department: z.string().optional().default(""),
+  departmentId: z.string().optional().default(""),
   position: z.string().optional().default(""),
   phone: z.string().optional().default(""),
   email: z.string().optional().default(""),
@@ -126,8 +131,8 @@ type EmployeeFormValues = z.infer<typeof employeeSchema>;
 export function EmployeesView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
-  // State
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -138,7 +143,6 @@ export function EmployeesView() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const limit = 20;
 
-  // Queries
   const { data, isLoading } = useQuery<EmployeesResponse>({
     queryKey: ["employees", page, search, departmentFilter, statusFilter],
     queryFn: async () => {
@@ -148,7 +152,7 @@ export function EmployeesView() {
       });
       if (search) params.set("search", search);
       if (departmentFilter && departmentFilter !== "all")
-        params.set("department", departmentFilter);
+        params.set("departmentId", departmentFilter);
       if (statusFilter && statusFilter !== "all")
         params.set("isActive", statusFilter);
       const res = await fetch(`/api/employees?${params}`);
@@ -166,24 +170,22 @@ export function EmployeesView() {
     },
   });
 
-  // Get unique departments from employees
-  const departments = React.useMemo(() => {
-    if (!data?.employees) return [];
-    const depts = new Set<string>();
-    data.employees.forEach((e) => {
-      if (e.department) depts.add(e.department);
-    });
-    return Array.from(depts).sort();
-  }, [data]);
+  const { data: departments = [] } = useQuery<Department[]>({
+    queryKey: ["departments-list"],
+    queryFn: async () => {
+      const res = await fetch("/api/departments");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
-  // Add form
   const addForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
       employeeId: "",
       name: "",
       nameAr: "",
-      department: "",
+      departmentId: "",
       position: "",
       phone: "",
       email: "",
@@ -192,12 +194,10 @@ export function EmployeesView() {
     },
   });
 
-  // Edit form
   const editForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
   });
 
-  // Mutations
   const addMutation = useMutation({
     mutationFn: async (values: EmployeeFormValues) => {
       const res = await fetch("/api/employees", {
@@ -205,6 +205,7 @@ export function EmployeesView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
+          departmentId: values.departmentId || null,
           shiftId: values.shiftId || null,
           fingerprintId: values.fingerprintId ?? null,
         }),
@@ -215,23 +216,15 @@ export function EmployeesView() {
       }
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setAddOpen(false);
       addForm.reset();
-      const deviceCount = data.deviceAssignments?.length ?? 0;
-      toast({
-        title: "Employee added",
-        description: `Employee uploaded to ${deviceCount} device(s)`,
-      });
+      toast({ title: t("employees.added") });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: t("common.error"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -242,6 +235,7 @@ export function EmployeesView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
+          departmentId: values.departmentId || null,
           shiftId: values.shiftId || null,
           fingerprintId: values.fingerprintId ?? null,
         }),
@@ -257,14 +251,10 @@ export function EmployeesView() {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setEditOpen(false);
       setEditingEmployee(null);
-      toast({ title: "Employee updated" });
+      toast({ title: t("employees.updated") });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: t("common.error"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -278,14 +268,10 @@ export function EmployeesView() {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setDeleteId(null);
-      toast({ title: "Employee deactivated" });
+      toast({ title: t("employees.deactivated") });
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to deactivate employee",
-        variant: "destructive",
-      });
+      toast({ title: t("common.error"), description: "Failed to deactivate employee", variant: "destructive" });
     },
   });
 
@@ -296,7 +282,7 @@ export function EmployeesView() {
         employeeId: emp.employeeId,
         name: emp.name,
         nameAr: emp.nameAr || "",
-        department: emp.department || "",
+        departmentId: emp.departmentId || "",
         position: emp.position || "",
         phone: emp.phone || "",
         email: emp.email || "",
@@ -313,6 +299,24 @@ export function EmployeesView() {
     setPage(1);
   };
 
+  // Department select for forms
+  const DepartmentSelect = ({ field, form }: { field: { onChange: (v: string) => void; value: string }; form: ReturnType<typeof useForm<EmployeeFormValues>> }) => (
+    <Select onValueChange={field.onChange} value={field.value}>
+      <FormControl>
+        <SelectTrigger>
+          <SelectValue placeholder={t("employees.selectDepartment")} />
+        </SelectTrigger>
+      </FormControl>
+      <SelectContent>
+        {departments.map((d) => (
+          <SelectItem key={d.id} value={d.id}>
+            {d.nameAr ? `${d.name} / ${d.nameAr}` : d.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -328,24 +332,18 @@ export function EmployeesView() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Employees</CardTitle>
-              <CardDescription>
-                Manage your organization&apos;s workforce
-              </CardDescription>
+              <CardTitle className="text-base">{t("employees.title")}</CardTitle>
+              <CardDescription>{t("employees.subtitle")}</CardDescription>
             </div>
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-                  <UserPlus className="h-4 w-4" />
-                  Add Employee
-                </Button>
-              </DialogTrigger>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setAddOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+                {t("employees.add")}
+              </Button>
               <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Add New Employee</DialogTitle>
-                  <DialogDescription>
-                    Fill in the details to create a new employee record
-                  </DialogDescription>
+                  <DialogTitle>{t("employees.addNew")}</DialogTitle>
+                  <DialogDescription>{t("employees.addNewDesc")}</DialogDescription>
                 </DialogHeader>
                 <Form {...addForm}>
                   <form
@@ -358,7 +356,7 @@ export function EmployeesView() {
                         name="employeeId"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Employee ID *</FormLabel>
+                            <FormLabel>{t("employees.empId")} *</FormLabel>
                             <FormControl>
                               <Input placeholder="EMP-001" {...field} />
                             </FormControl>
@@ -371,7 +369,7 @@ export function EmployeesView() {
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Name *</FormLabel>
+                            <FormLabel>{t("employees.name")} *</FormLabel>
                             <FormControl>
                               <Input placeholder="Full name" {...field} />
                             </FormControl>
@@ -386,13 +384,9 @@ export function EmployeesView() {
                         name="nameAr"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Arabic Name</FormLabel>
+                            <FormLabel>{t("employees.nameAr")}</FormLabel>
                             <FormControl>
-                              <Input
-                                placeholder="الاسم بالعربي"
-                                dir="rtl"
-                                {...field}
-                              />
+                              <Input placeholder="الاسم بالعربي" dir="rtl" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -400,13 +394,11 @@ export function EmployeesView() {
                       />
                       <FormField
                         control={addForm.control}
-                        name="department"
+                        name="departmentId"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Department</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Engineering" {...field} />
-                            </FormControl>
+                            <FormLabel>{t("employees.department")}</FormLabel>
+                            <DepartmentSelect field={field} form={addForm} />
                             <FormMessage />
                           </FormItem>
                         )}
@@ -418,7 +410,7 @@ export function EmployeesView() {
                         name="position"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Position</FormLabel>
+                            <FormLabel>{t("employees.position")}</FormLabel>
                             <FormControl>
                               <Input placeholder="Developer" {...field} />
                             </FormControl>
@@ -431,24 +423,18 @@ export function EmployeesView() {
                         name="shiftId"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Shift</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              value={field.value}
-                            >
+                            <FormLabel>{t("employees.shift")}</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select shift" />
+                                  <SelectValue placeholder={t("employees.selectShift")} />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
                                 {shifts.map((s) => (
                                   <SelectItem key={s.id} value={s.id}>
                                     <span className="flex items-center gap-2">
-                                      <span
-                                        className="h-2 w-2 rounded-full"
-                                        style={{ backgroundColor: s.color }}
-                                      />
+                                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
                                       {s.name} ({s.startTime}-{s.endTime})
                                     </span>
                                   </SelectItem>
@@ -466,7 +452,7 @@ export function EmployeesView() {
                         name="phone"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Phone</FormLabel>
+                            <FormLabel>{t("employees.phone")}</FormLabel>
                             <FormControl>
                               <Input placeholder="+966501001001" {...field} />
                             </FormControl>
@@ -479,13 +465,9 @@ export function EmployeesView() {
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>{t("employees.email")}</FormLabel>
                             <FormControl>
-                              <Input
-                                type="email"
-                                placeholder="email@company.com"
-                                {...field}
-                              />
+                              <Input type="email" placeholder="email@company.com" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -497,11 +479,11 @@ export function EmployeesView() {
                       name="fingerprintId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Fingerprint ID</FormLabel>
+                          <FormLabel>{t("employees.fingerprintId")}</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
-                              placeholder="Auto-assigned if empty"
+                              placeholder={t("employees.autoAssigned")}
                               value={field.value ?? ""}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -514,19 +496,15 @@ export function EmployeesView() {
                       )}
                     />
                     <DialogFooter>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setAddOpen(false)}
-                      >
-                        Cancel
+                      <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+                        {t("employees.cancel")}
                       </Button>
                       <Button
                         type="submit"
                         className="bg-emerald-600 hover:bg-emerald-700"
                         disabled={addMutation.isPending}
                       >
-                        {addMutation.isPending ? "Adding..." : "Add Employee"}
+                        {addMutation.isPending ? t("employees.adding") : t("employees.add")}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -541,33 +519,33 @@ export function EmployeesView() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search employees..."
+                placeholder={t("employees.search")}
                 value={search}
                 onChange={handleSearch}
                 className="pl-9"
               />
             </div>
             <Select value={departmentFilter} onValueChange={(v) => { setDepartmentFilter(v); setPage(1); }}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Department" />
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder={t("employees.department")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
+                <SelectItem value="all">{t("employees.allDepartments")}</SelectItem>
                 {departments.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.nameAr ? `${d.name} / ${d.nameAr}` : d.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
               <SelectTrigger className="w-full sm:w-32">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={t("employees.status")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="true">Active</SelectItem>
-                <SelectItem value="false">Inactive</SelectItem>
+                <SelectItem value="all">{t("employees.all")}</SelectItem>
+                <SelectItem value="true">{t("employees.active")}</SelectItem>
+                <SelectItem value="false">{t("employees.inactive")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -577,37 +555,35 @@ export function EmployeesView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">Emp ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="hidden md:table-cell">Arabic</TableHead>
-                  <TableHead className="hidden sm:table-cell">Dept</TableHead>
-                  <TableHead className="hidden lg:table-cell">Position</TableHead>
-                  <TableHead className="hidden lg:table-cell">Shift</TableHead>
-                  <TableHead className="hidden sm:table-cell">FP ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-20">Actions</TableHead>
+                  <TableHead className="w-24">{t("employees.empId")}</TableHead>
+                  <TableHead>{t("employees.name")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("employees.nameAr")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("employees.department")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("employees.position")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("employees.shift")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("employees.fingerprintId")}</TableHead>
+                  <TableHead>{t("employees.status")}</TableHead>
+                  <TableHead className="w-20">{t("employees.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.employees.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      No employees found
+                      {t("employees.noEmployees")}
                     </TableCell>
                   </TableRow>
                 )}
                 {data?.employees.map((emp) => (
                   <TableRow key={emp.id}>
-                    <TableCell className="font-mono text-xs">
-                      {emp.employeeId}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{emp.employeeId}</TableCell>
                     <TableCell className="font-medium">{emp.name}</TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground" dir="rtl">
                       {emp.nameAr || "—"}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <Badge variant="outline" className="text-xs">
-                        {emp.department || "N/A"}
+                        {emp.department?.name || t("employees.na")}
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
@@ -616,10 +592,7 @@ export function EmployeesView() {
                     <TableCell className="hidden lg:table-cell">
                       {emp.shift ? (
                         <span className="flex items-center gap-1.5 text-xs">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: emp.shift.color }}
-                          />
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: emp.shift.color }} />
                           {emp.shift.name}
                         </span>
                       ) : (
@@ -637,25 +610,15 @@ export function EmployeesView() {
                             : "bg-muted text-muted-foreground"
                         }`}
                       >
-                        {emp.isActive ? "Active" : "Inactive"}
+                        {emp.isActive ? t("employees.active") : t("employees.inactive")}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleEdit(emp)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(emp)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => setDeleteId(emp.id)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(emp.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -670,29 +633,15 @@ export function EmployeesView() {
           {data && data.totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <p className="text-xs text-muted-foreground">
-                Showing {(page - 1) * limit + 1}–
-                {Math.min(page * limit, data.total)} of {data.total}
+                {t("employees.showing")} {(page - 1) * limit + 1}–
+                {Math.min(page * limit, data.total)} {t("employees.of")} {data.total}
               </p>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm">
-                  {page} / {data.totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={page >= data.totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
+                <span className="text-sm">{page} / {data.totalPages}</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -705,175 +654,63 @@ export function EmployeesView() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Employee</DialogTitle>
-            <DialogDescription>Update employee information</DialogDescription>
+            <DialogTitle>{t("employees.edit")}</DialogTitle>
+            <DialogDescription>{t("employees.editDesc")}</DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form
               onSubmit={editForm.handleSubmit((v) => {
-                if (editingEmployee) {
-                  editMutation.mutate({ id: editingEmployee.id, values: v });
-                }
+                if (editingEmployee) editMutation.mutate({ id: editingEmployee.id, values: v });
               })}
               className="space-y-4"
             >
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="employeeId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Employee ID *</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name *</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={editForm.control} name="employeeId" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.empId")} *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={editForm.control} name="name" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.name")} *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="nameAr"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Arabic Name</FormLabel>
-                      <FormControl>
-                        <Input dir="rtl" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="department"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Department</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={editForm.control} name="nameAr" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.nameAr")}</FormLabel><FormControl><Input dir="rtl" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={editForm.control} name="departmentId" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.department")}</FormLabel><DepartmentSelect field={field} form={editForm} /><FormMessage /></FormItem>
+                )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="position"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Position</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="shiftId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Shift</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select shift" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {shifts.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name} ({s.startTime}-{s.endTime})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={editForm.control} name="position" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.position")}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={editForm.control} name="shiftId" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.shift")}</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder={t("employees.selectShift")} /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {shifts.map((s) => (<SelectItem key={s.id} value={s.id}>{s.name} ({s.startTime}-{s.endTime})</SelectItem>))}
+                      </SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={editForm.control} name="phone" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.phone")}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={editForm.control} name="email" render={({ field }) => (
+                  <FormItem><FormLabel>{t("employees.email")}</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
-              <FormField
-                control={editForm.control}
-                name="fingerprintId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fingerprint ID</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        value={field.value ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          field.onChange(val ? Number(val) : null);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={editForm.control} name="fingerprintId" render={({ field }) => (
+                <FormItem><FormLabel>{t("employees.fingerprintId")}</FormLabel><FormControl>
+                  <Input type="number" value={field.value ?? ""} onChange={(e) => { const val = e.target.value; field.onChange(val ? Number(val) : null); }} />
+                </FormControl><FormMessage /></FormItem>
+              )} />
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  disabled={editMutation.isPending}
-                >
-                  {editMutation.isPending ? "Saving..." : "Save Changes"}
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>{t("employees.cancel")}</Button>
+                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={editMutation.isPending}>
+                  {editMutation.isPending ? t("employees.saving") : t("employees.saveChanges")}
                 </Button>
               </DialogFooter>
             </form>
@@ -885,22 +722,16 @@ export function EmployeesView() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will deactivate the employee. They will no longer be able to
-              use the attendance system. This action can be reversed by an
-              administrator.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("employees.deactivate")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("employees.deactivateDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                if (deleteId) deleteMutation.mutate(deleteId);
-              }}
+              onClick={() => { if (deleteId) deleteMutation.mutate(deleteId); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Deactivate
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

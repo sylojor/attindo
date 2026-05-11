@@ -1,5 +1,5 @@
 // Attindo HR/Payroll - Database Schema
-// v1.16.0
+// v2.0.0
 
 generator client {
   provider = "prisma-client-js"
@@ -10,18 +10,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── System Settings ───
+
+model Settings {
+  id       String @id @default("default")
+  currency String @default("SAR")
+  lang     String @default("ar") // ar, en, bilingual
+  companyName     String @default("Attindo")
+  companyNameAr   String @default("أتندو")
+}
+
+// ─── Department ───
+
+model Department {
+  id          String @id @default(cuid())
+  name        String @unique
+  nameAr      String?
+  manager     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees Employee[]
+}
+
+// ─── Core Models ───
+
 model Employee {
   id           String   @id @default(cuid())
   employeeId   String   @unique // Company employee ID (e.g., EMP-001)
   name         String
   nameAr       String?  // Arabic name
-  department   String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
   position     String?
   phone        String?
   email        String?
   fingerprintId Int?    // ID on the fingerprint device
   photoUrl     String?
   isActive     Boolean  @default(true)
+  hireDate     DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -34,6 +61,7 @@ model Employee {
   paySlips     PaySlip[]
   allowances   Allowance[]
   deductions   Deduction[]
+  loans        Loan[]
 }
 
 model Device {
@@ -199,6 +227,7 @@ model PaySlip {
   basicSalary       Float    @default(0)
   totalAllowances   Float    @default(0)
   totalDeductions   Float    @default(0)
+  loanDeduction     Float    @default(0)
   overtimePay       Float    @default(0)
   netSalary         Float    @default(0)
   workingDays       Int      @default(0)
@@ -245,4 +274,24 @@ model Deduction {
   createdAt   DateTime @default(now())
 
   @@index([employeeId])
+}
+
+// ─── Loan / Advance (السلف) ───
+
+model Loan {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  type        String   @default("advance") // advance (سلفة), loan (قرض)
+  amount      Float
+  monthlyDeduction Float @default(0) // amount deducted per month
+  remainingBalance Float // remaining balance
+  issueDate   DateTime @default(now())
+  status      String   @default("active") // active, completed, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
 }

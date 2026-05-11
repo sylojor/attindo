@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {};
 
     if (department) {
-      where.employee = { department };
+      where.employee = { department: { name: department } };
     }
 
     if (search) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
             employeeId: true,
             name: true,
             nameAr: true,
-            department: true,
+            department: { select: { id: true, name: true, nameAr: true } },
             position: true,
             isActive: true,
           },
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
             employeeId: true,
             name: true,
             nameAr: true,
-            department: true,
+            department: { select: { id: true, name: true, nameAr: true } },
             position: true,
             isActive: true,
           },

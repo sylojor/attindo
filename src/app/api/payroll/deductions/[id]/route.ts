@@ -38,7 +38,7 @@ export async function PUT(
             employeeId: true,
             name: true,
             nameAr: true,
-            department: true,
+            department: { select: { id: true, name: true, nameAr: true } },
             position: true,
             isActive: true,
           },

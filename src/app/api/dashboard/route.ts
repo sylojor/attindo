@@ -142,15 +142,19 @@ export async function GET() {
     }
 
     // Department breakdown
-    const departmentStats = await db.employee.groupBy({
-      by: ["department"],
-      where: { isActive: true, department: { not: null } },
-      _count: { department: true },
+    const departmentRecords = await db.department.findMany({
+      include: {
+        _count: {
+          select: { employees: true },
+        },
+      },
     });
 
-    const departments = departmentStats.map((d) => ({
-      name: d.department,
-      count: d._count.department,
+    const departments = departmentRecords.map((d) => ({
+      id: d.id,
+      name: d.name,
+      nameAr: d.nameAr,
+      count: d._count.employees,
     }));
 
     return NextResponse.json({

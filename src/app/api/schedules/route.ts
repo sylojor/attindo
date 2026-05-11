@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
             employeeId: true,
             name: true,
             nameAr: true,
-            department: true,
+            department: { select: { id: true, name: true, nameAr: true } },
           },
         },
         shift: true,

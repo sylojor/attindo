@@ -82,6 +82,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/app-store";
+import { useTranslation } from "@/hooks/use-translation";
 import { format } from "date-fns";
 
 const MAX_DEVICES = 6;
@@ -224,6 +225,7 @@ export function DevicesView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { syncProgress, updateSyncProgress } = useAppStore();
+  const { t } = useTranslation();
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [syncingDevices, setSyncingDevices] = useState<Set<string>>(new Set());
@@ -278,7 +280,7 @@ export function DevicesView() {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       setAddOpen(false);
       addForm.reset();
-      toast({ title: "Device added", description: "Device registered. Auto-testing connection..." });
+      toast({ title: t("devices.deviceAdded"), description: t("devices.autoTesting") });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -295,10 +297,10 @@ export function DevicesView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       setDeleteId(null);
-      toast({ title: "Device deleted" });
+      toast({ title: t("devices.deviceDeleted") });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to delete device", variant: "destructive" });
+      toast({ title: t("common.error"), description: "Failed to delete device", variant: "destructive" });
     },
   });
 
@@ -365,7 +367,7 @@ export function DevicesView() {
             });
             queryClient.invalidateQueries({ queryKey: ["devices"] });
             toast({
-              title: "Sync completed",
+              title: t("sync.completed"),
               description: `${deviceName} synced successfully`,
             });
           }
@@ -395,7 +397,7 @@ export function DevicesView() {
         next.delete(deviceId);
         return next;
       });
-      toast({ title: "Sync failed", description: `Failed to sync ${deviceName}`, variant: "destructive" });
+      toast({ title: t("common.error"), description: `Failed to sync ${deviceName}`, variant: "destructive" });
     }
   };
 
@@ -413,7 +415,7 @@ export function DevicesView() {
         throw new Error(err.error || "Sync all failed");
       }
 
-      toast({ title: "Sync started", description: "All devices syncing in background" });
+      toast({ title: t("syncing"), description: "All devices syncing in background" });
 
       for (const device of devices) {
         if (device.isActive) {
@@ -422,7 +424,7 @@ export function DevicesView() {
       }
     } catch (error) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: error instanceof Error ? error.message : "Failed to start sync",
         variant: "destructive",
       });
@@ -443,20 +445,20 @@ export function DevicesView() {
       if (data.success) {
         const caps = data.info?.capabilities;
         toast({
-          title: "Connection successful",
+          title: t("devices.online"),
           description: `${deviceName} is online${data.info?.serialNumber ? ` (S/N: ${data.info.serialNumber})` : ""}${caps?.length ? ` — ${caps.join(", ")}` : ""}`,
         });
         queryClient.invalidateQueries({ queryKey: ["devices"] });
       } else {
         toast({
-          title: "Connection failed",
+          title: t("common.error"),
           description: data.message || `Could not connect to ${deviceName}`,
           variant: "destructive",
         });
       }
     } catch (err: unknown) {
       toast({
-        title: "Connection error",
+        title: t("common.error"),
         description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
@@ -478,20 +480,20 @@ export function DevicesView() {
 
       if (data.success && data.capabilities) {
         toast({
-          title: "Capabilities detected",
+          title: t("devices.detect"),
           description: `${deviceName}: ${data.deviceModel || "Unknown model"} — ${data.capabilities.join(", ")}`,
         });
         queryClient.invalidateQueries({ queryKey: ["devices"] });
       } else {
         toast({
-          title: "Detection failed",
+          title: t("common.error"),
           description: data.error || `Could not detect capabilities for ${deviceName}`,
           variant: "destructive",
         });
       }
     } catch (err: unknown) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: err instanceof Error ? err.message : "Failed to detect capabilities",
         variant: "destructive",
       });
@@ -511,13 +513,13 @@ export function DevicesView() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Restarting", description: `${deviceName} is restarting...` });
+        toast({ title: t("devices.restart"), description: `${deviceName} is restarting...` });
         queryClient.invalidateQueries({ queryKey: ["devices"] });
       } else {
-        toast({ title: "Error", description: data.error || "Failed to restart", variant: "destructive" });
+        toast({ title: t("common.error"), description: data.error || "Failed to restart", variant: "destructive" });
       }
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+      toast({ title: t("common.error"), description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setRestartingId(null);
     }
@@ -534,12 +536,12 @@ export function DevicesView() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Time synced", description: `${deviceName} time synchronized with server` });
+        toast({ title: t("devices.syncTime"), description: `${deviceName} time synchronized with server` });
       } else {
-        toast({ title: "Error", description: data.error || "Failed to sync time", variant: "destructive" });
+        toast({ title: t("common.error"), description: data.error || "Failed to sync time", variant: "destructive" });
       }
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+      toast({ title: t("common.error"), description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setSyncingTimeId(null);
     }
@@ -558,7 +560,7 @@ export function DevicesView() {
       setDeviceUsers(Array.isArray(data) ? data : []);
     } catch {
       setDeviceUsers([]);
-      toast({ title: "Error", description: "Failed to fetch device users", variant: "destructive" });
+      toast({ title: t("common.error"), description: "Failed to fetch device users", variant: "destructive" });
     } finally {
       setLoadingUsers(false);
     }
@@ -574,13 +576,13 @@ export function DevicesView() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: "User deleted", description: `${userName} removed from device` });
+        toast({ title: t("devices.deviceDeleted"), description: `${userName} removed from device` });
         fetchDeviceUsers(deviceId);
       } else {
-        toast({ title: "Error", description: "Failed to delete user", variant: "destructive" });
+        toast({ title: t("common.error"), description: "Failed to delete user", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Error", description: "Failed to delete user from device", variant: "destructive" });
+      toast({ title: t("common.error"), description: "Failed to delete user from device", variant: "destructive" });
     }
   };
 
@@ -647,7 +649,7 @@ export function DevicesView() {
             className="gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${syncingDevices.size > 0 ? "animate-spin" : ""}`} />
-            Sync All
+            {t("devices.syncAll")}
           </Button>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
@@ -656,14 +658,14 @@ export function DevicesView() {
                 disabled={devices.length >= MAX_DEVICES}
               >
                 <Plus className="h-4 w-4" />
-                Add Device
+                {t("devices.add")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add ZKTeco Device</DialogTitle>
+                <DialogTitle>{t("devices.addZKTeco")}</DialogTitle>
                 <DialogDescription>
-                  Register a new ZKTeco terminal. Make sure the device is on the same network and port 4370 is open.
+                  {t("devices.addZKTecoDesc")}
                 </DialogDescription>
               </DialogHeader>
               <Form {...addForm}>
@@ -676,7 +678,7 @@ export function DevicesView() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Device Name *</FormLabel>
+                        <FormLabel>{t("devices.deviceName")} *</FormLabel>
                         <FormControl>
                           <Input placeholder="Main Entrance" {...field} />
                         </FormControl>
@@ -690,7 +692,7 @@ export function DevicesView() {
                       name="ip"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>IP Address *</FormLabel>
+                          <FormLabel>{t("devices.ipAddress")} *</FormLabel>
                           <FormControl>
                             <Input placeholder="192.168.1.201" {...field} />
                           </FormControl>
@@ -703,7 +705,7 @@ export function DevicesView() {
                       name="port"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Port</FormLabel>
+                          <FormLabel>{t("devices.port")}</FormLabel>
                           <FormControl>
                             <Input type="number" {...field} />
                           </FormControl>
@@ -717,7 +719,7 @@ export function DevicesView() {
                     name="deviceType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Device Model</FormLabel>
+                        <FormLabel>{t("devices.deviceModel")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -739,7 +741,7 @@ export function DevicesView() {
                   {/* Show capabilities preview */}
                   {watchedDeviceType && DEVICE_TYPES[watchedDeviceType] && (
                     <div className="rounded-md border p-3 bg-muted/30">
-                      <p className="text-xs font-medium mb-1.5">Supported Verification Modes:</p>
+                      <p className="text-xs font-medium mb-1.5">{t("devices.supportedModes")}</p>
                       <CapabilitiesBadges
                         capabilities={DEVICE_TYPES[watchedDeviceType].capabilities}
                         size="sm"
@@ -752,14 +754,14 @@ export function DevicesView() {
                       variant="outline"
                       onClick={() => setAddOpen(false)}
                     >
-                      Cancel
+                      {t("devices.cancel")}
                     </Button>
                     <Button
                       type="submit"
                       className="bg-emerald-600 hover:bg-emerald-700"
                       disabled={addMutation.isPending}
                     >
-                      {addMutation.isPending ? "Adding..." : "Add Device"}
+                      {addMutation.isPending ? t("devices.adding") : t("devices.addDevice")}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -776,14 +778,14 @@ export function DevicesView() {
             <Shield className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="font-medium text-emerald-700 dark:text-emerald-400">
-                Official ZKTeco ZK Protocol Support — BioTime Replacement
+                {t("devices.zkBanner.title")}
               </p>
               <p className="text-muted-foreground text-xs mt-0.5">
                 Compatible with: <strong>MB20</strong> (Multi-Biometric), F18, F22, F22-Pro, SpeedFace-V4L/V5L, iFace302/402, inBio160/260/460, K14/K20/K40, ZK T4-C/T5-C &mdash;
                 All devices using ZK TCP protocol on port 4370
               </p>
               <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[10px] text-muted-foreground">Verification:</span>
+                <span className="text-[10px] text-muted-foreground">{t("devices.zkBanner.verification")}</span>
                 <CapabilitiesBadges capabilities={["fingerprint", "face", "palm", "card", "password"]} size="xs" />
               </div>
             </div>
@@ -795,9 +797,9 @@ export function DevicesView() {
       {devices.length === 0 ? (
         <Card className="p-8 text-center">
           <Server className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="font-semibold mb-1">No devices yet</h3>
+          <h3 className="font-semibold mb-1">{t("devices.noDevices")}</h3>
           <p className="text-sm text-muted-foreground">
-            Add a ZKTeco terminal (MB20, F18, SpeedFace, etc.) to start syncing attendance data
+            {t("devices.noDevicesDesc")}
           </p>
         </Card>
       ) : (
@@ -871,35 +873,35 @@ export function DevicesView() {
                   {/* Device Info Grid */}
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div>
-                      <span className="text-muted-foreground">Employees</span>
+                      <span className="text-muted-foreground">{t("devices.employees")}</span>
                       <p className="font-medium">
                         {(device.liveInfo?.userCount ?? device.userCount) || device._count.deviceEmployees}
                         {((device.liveInfo?.userCount !== undefined) || device.userCount > 0) && (
-                          <span className="text-muted-foreground"> on device</span>
+                          <span className="text-muted-foreground"> {t("devices.onDevice")}</span>
                         )}
                       </p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Logs</span>
+                      <span className="text-muted-foreground">{t("devices.logs")}</span>
                       <p className="font-medium">
                         {(device.liveInfo?.logCount ?? device.logCount) || device._count.attendanceLogs}
                         {((device.liveInfo?.logCount !== undefined) || device.logCount > 0) && (
-                          <span className="text-muted-foreground"> on device</span>
+                          <span className="text-muted-foreground"> {t("devices.onDevice")}</span>
                         )}
                       </p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Last Sync</span>
+                      <span className="text-muted-foreground">{t("devices.lastSync")}</span>
                       <p className="font-medium">
                         {device.lastSyncAt
                           ? format(new Date(device.lastSyncAt), "MMM d, HH:mm")
-                          : "Never"}
+                          : t("devices.never")}
                       </p>
                     </div>
                     {/* Biometric counts for multi-bio devices */}
                     {(bioCounts.fingers > 0 || bioCounts.faces > 0 || bioCounts.palms > 0) && (
                       <div className="col-span-2">
-                        <span className="text-muted-foreground">Biometric Templates</span>
+                        <span className="text-muted-foreground">{t("devices.biometricTemplates")}</span>
                         <div className="flex items-center gap-3 mt-0.5">
                           {bioCounts.fingers > 0 && (
                             <span className="flex items-center gap-1 text-[10px]">
@@ -924,7 +926,7 @@ export function DevicesView() {
                     )}
                     {(device.serialNumber || device.liveInfo?.serialNumber) && (
                       <div className="col-span-2">
-                        <span className="text-muted-foreground">Serial</span>
+                        <span className="text-muted-foreground">{t("devices.serial")}</span>
                         <p className="font-medium font-mono text-[10px]">
                           {device.liveInfo?.serialNumber || device.serialNumber}
                         </p>
@@ -932,7 +934,7 @@ export function DevicesView() {
                     )}
                     {(device.firmware || device.liveInfo?.firmware) && (
                       <div className="col-span-2">
-                        <span className="text-muted-foreground">Firmware</span>
+                        <span className="text-muted-foreground">{t("devices.firmware")}</span>
                         <p className="font-medium text-[10px]">
                           {device.liveInfo?.firmware || device.firmware}
                         </p>
@@ -1143,7 +1145,7 @@ export function DevicesView() {
                     )}
                     {(dev.firmware || dev.liveInfo?.firmware) && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Firmware</span>
+                        <span className="text-muted-foreground">{t("devices.firmware")}</span>
                         <span className="font-medium">{dev.liveInfo?.firmware || dev.firmware}</span>
                       </div>
                     )}

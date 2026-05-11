@@ -17,7 +17,7 @@ export async function GET(
         deviceEmployees: {
           include: {
             employee: {
-              select: { id: true, employeeId: true, name: true, fingerprintId: true, department: true, isActive: true },
+              select: { id: true, employeeId: true, name: true, fingerprintId: true, department: { select: { id: true, name: true, nameAr: true } }, isActive: true },
             },
           },
         },

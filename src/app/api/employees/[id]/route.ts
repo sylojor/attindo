@@ -13,6 +13,7 @@ export async function GET(
       where: { id },
       include: {
         shift: true,
+        department: true,
         schedules: {
           include: { shift: true },
           orderBy: { effectiveDate: "desc" },
@@ -48,12 +49,23 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const { name, nameAr, department, position, phone, email, fingerprintId, shiftId, isActive } = body;
+    const { name, nameAr, departmentId, position, phone, email, fingerprintId, shiftId, isActive } = body;
 
     // Check if employee exists
     const existing = await db.employee.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    // Validate departmentId if provided
+    if (departmentId !== undefined && departmentId !== null) {
+      const department = await db.department.findUnique({ where: { id: departmentId } });
+      if (!department) {
+        return NextResponse.json(
+          { error: "Department not found" },
+          { status: 400 }
+        );
+      }
     }
 
     // If fingerprintId is being changed, check uniqueness
@@ -74,7 +86,7 @@ export async function PUT(
       data: {
         ...(name !== undefined && { name }),
         ...(nameAr !== undefined && { nameAr }),
-        ...(department !== undefined && { department }),
+        ...(departmentId !== undefined && { departmentId }),
         ...(position !== undefined && { position }),
         ...(phone !== undefined && { phone }),
         ...(email !== undefined && { email }),
@@ -84,6 +96,7 @@ export async function PUT(
       },
       include: {
         shift: true,
+        department: true,
       },
     });
 
@@ -118,6 +131,9 @@ export async function DELETE(
     const employee = await db.employee.update({
       where: { id },
       data: { isActive: false },
+      include: {
+        department: true,
+      },
     });
 
     return NextResponse.json({

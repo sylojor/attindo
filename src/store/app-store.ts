@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Lang } from "@/lib/i18n";
 
 export interface SyncProgress {
   deviceId: string;
@@ -17,11 +18,13 @@ export interface DeviceStatus {
 
 interface AppState {
   activeTab: string;
+  lang: Lang;
   syncProgress: Record<string, SyncProgress>;
   deviceStatuses: Record<string, DeviceStatus>;
   isGlobalSyncing: boolean;
 
   setActiveTab: (tab: string) => void;
+  setLang: (lang: Lang) => void;
   updateSyncProgress: (deviceId: string, progress: SyncProgress) => void;
   removeSyncProgress: (deviceId: string) => void;
   updateDeviceStatus: (deviceId: string, status: DeviceStatus) => void;
@@ -31,11 +34,13 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   activeTab: "dashboard",
+  lang: "ar",
   syncProgress: {},
   deviceStatuses: {},
   isGlobalSyncing: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
+  setLang: (lang) => set({ lang }),
 
   updateSyncProgress: (deviceId, progress) =>
     set((state) => ({

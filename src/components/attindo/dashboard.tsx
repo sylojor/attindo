@@ -38,6 +38,7 @@ import {
   Legend,
 } from "recharts";
 import { format } from "date-fns";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface DashboardData {
   totalEmployees: number;
@@ -66,37 +67,6 @@ interface DashboardData {
   }>;
   departments: Array<{ name: string | null; count: number }>;
 }
-
-const statCards = [
-  {
-    key: "totalEmployees",
-    label: "Total Employees",
-    icon: Users,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50 dark:bg-emerald-950/30",
-  },
-  {
-    key: "onlineDevices",
-    label: "Active Devices",
-    icon: Wifi,
-    color: "text-teal-600",
-    bg: "bg-teal-50 dark:bg-teal-950/30",
-  },
-  {
-    key: "todayCheckIns",
-    label: "Today's Attendance",
-    icon: Clock,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50 dark:bg-cyan-950/30",
-  },
-  {
-    key: "lateArrivals",
-    label: "Late Arrivals",
-    icon: AlertTriangle,
-    color: "text-amber-600",
-    bg: "bg-amber-50 dark:bg-amber-950/30",
-  },
-];
 
 function DashboardSkeleton() {
   return (
@@ -130,6 +100,39 @@ function DashboardSkeleton() {
 }
 
 export function DashboardView() {
+  const { t } = useTranslation();
+
+  const statCards = [
+    {
+      key: "totalEmployees",
+      label: t("dashboard.totalEmployees"),
+      icon: Users,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50 dark:bg-emerald-950/30",
+    },
+    {
+      key: "onlineDevices",
+      label: t("dashboard.activeDevices"),
+      icon: Wifi,
+      color: "text-teal-600",
+      bg: "bg-teal-50 dark:bg-teal-950/30",
+    },
+    {
+      key: "todayCheckIns",
+      label: t("dashboard.todayAttendance"),
+      icon: Clock,
+      color: "text-cyan-600",
+      bg: "bg-cyan-50 dark:bg-cyan-950/30",
+    },
+    {
+      key: "lateArrivals",
+      label: t("dashboard.lateArrivals"),
+      icon: AlertTriangle,
+      color: "text-amber-600",
+      bg: "bg-amber-50 dark:bg-amber-950/30",
+    },
+  ];
+
   const { data, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ["dashboard"],
     queryFn: async () => {
@@ -144,9 +147,7 @@ export function DashboardView() {
   if (isError || !data) {
     return (
       <Card className="p-6 text-center">
-        <p className="text-muted-foreground">
-          Failed to load dashboard data. Please try again.
-        </p>
+        <p className="text-muted-foreground">{t("dashboard.failedToLoad")}</p>
       </Card>
     );
   }
@@ -169,10 +170,10 @@ export function DashboardView() {
             </div>
             <div>
               <p className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">
-                Official ZKTeco ZK Protocol Support
+                {t("dashboard.zkBanner.title")}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Attindo replaces BioTime &mdash; Real-time fingerprint device sync, attendance management, and payroll processing in one app
+                {t("dashboard.zkBanner.desc")}
               </p>
             </div>
           </div>
@@ -207,8 +208,8 @@ export function DashboardView() {
         {/* Attendance Chart */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Attendance Overview</CardTitle>
-            <CardDescription>Last 7 days attendance data</CardDescription>
+            <CardTitle className="text-base">{t("dashboard.attendanceOverview")}</CardTitle>
+            <CardDescription>{t("dashboard.last7days")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -232,13 +233,13 @@ export function DashboardView() {
                   <Legend wrapperStyle={{ fontSize: "12px" }} />
                   <Bar
                     dataKey="checkIns"
-                    name="Check-ins"
+                    name={t("dashboard.checkIns")}
                     fill="#10b981"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="checkOuts"
-                    name="Check-outs"
+                    name={t("dashboard.checkOuts")}
                     fill="#14b8a6"
                     radius={[4, 4, 0, 0]}
                   />
@@ -251,13 +252,13 @@ export function DashboardView() {
         {/* Department Breakdown */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Departments</CardTitle>
-            <CardDescription>Employee distribution</CardDescription>
+            <CardTitle className="text-base">{t("dashboard.departments")}</CardTitle>
+            <CardDescription>{t("dashboard.employeeDist")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {data.departments.length === 0 && (
-                <p className="text-sm text-muted-foreground">No departments yet</p>
+                <p className="text-sm text-muted-foreground">{t("dashboard.noDepartments")}</p>
               )}
               {data.departments.map((dept, i) => {
                 const colors = [
@@ -277,7 +278,7 @@ export function DashboardView() {
                   <div key={i} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium truncate">
-                        {dept.name || "Unassigned"}
+                        {dept.name || t("dashboard.unassigned")}
                       </span>
                       <Badge variant="secondary" className="text-xs">
                         {dept.count}
@@ -302,8 +303,8 @@ export function DashboardView() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base">Recent Sync Logs</CardTitle>
-              <CardDescription>Latest device synchronization activities</CardDescription>
+              <CardTitle className="text-base">{t("dashboard.recentSyncLogs")}</CardTitle>
+              <CardDescription>{t("dashboard.latestSyncActivities")}</CardDescription>
             </div>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </div>
@@ -311,18 +312,18 @@ export function DashboardView() {
         <CardContent>
           {data.recentSyncLogs.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
-              No sync logs yet
+              {t("dashboard.noSyncLogs")}
             </p>
           ) : (
             <div className="max-h-64 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Device</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Records</TableHead>
-                    <TableHead>Time</TableHead>
+                    <TableHead>{t("dashboard.device")}</TableHead>
+                    <TableHead>{t("dashboard.type")}</TableHead>
+                    <TableHead>{t("dashboard.status")}</TableHead>
+                    <TableHead>{t("dashboard.records")}</TableHead>
+                    <TableHead>{t("dashboard.time")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

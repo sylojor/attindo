@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   ChevronLeft,
@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface AttendanceLog {
   id: string;
@@ -53,11 +54,7 @@ interface AttendanceLog {
     department: string | null;
     position: string | null;
   } | null;
-  device: {
-    id: string;
-    name: string;
-    ip: string;
-  };
+  device: { id: string; name: string; ip: string };
 }
 
 interface AttendanceResponse {
@@ -68,25 +65,11 @@ interface AttendanceResponse {
   totalPages: number;
 }
 
-interface EmployeeOption {
-  id: string;
-  employeeId: string;
-  name: string;
-}
-
-interface DeviceOption {
-  id: string;
-  name: string;
-}
-
-const verifyModeLabels: Record<string, { label: string; color: string }> = {
-  fingerprint: { label: "Fingerprint", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-  card: { label: "Card", color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
-  face: { label: "Face", color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
-  password: { label: "Password", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-};
+interface EmployeeOption { id: string; employeeId: string; name: string; }
+interface DeviceOption { id: string; name: string; }
 
 export function AttendanceView() {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -95,40 +78,31 @@ export function AttendanceView() {
   const [verifyModeFilter, setVerifyModeFilter] = useState("all");
   const limit = 20;
 
-  // Fetch attendance
   const { data, isLoading } = useQuery<AttendanceResponse>({
     queryKey: ["attendance", page, dateFrom, dateTo, employeeFilter, deviceFilter, verifyModeFilter],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(limit),
-      });
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (dateFrom) params.set("dateFrom", dateFrom);
       if (dateTo) params.set("dateTo", dateTo);
-      if (employeeFilter && employeeFilter !== "all")
-        params.set("employeeId", employeeFilter);
-      if (deviceFilter && deviceFilter !== "all")
-        params.set("deviceId", deviceFilter);
-      if (verifyModeFilter && verifyModeFilter !== "all")
-        params.set("verifyMode", verifyModeFilter);
+      if (employeeFilter && employeeFilter !== "all") params.set("employeeId", employeeFilter);
+      if (deviceFilter && deviceFilter !== "all") params.set("deviceId", deviceFilter);
+      if (verifyModeFilter && verifyModeFilter !== "all") params.set("verifyMode", verifyModeFilter);
       const res = await fetch(`/api/attendance?${params}`);
       if (!res.ok) throw new Error("Failed to fetch attendance");
       return res.json();
     },
   });
 
-  // Fetch employees for filter
   const { data: employeeOptions = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["employees-filter"],
     queryFn: async () => {
       const res = await fetch("/api/employees?limit=100&isActive=true");
       if (!res.ok) return [];
-      const data = await res.json();
-      return data.employees || [];
+      const d = await res.json();
+      return d.employees || [];
     },
   });
 
-  // Fetch devices for filter
   const { data: deviceOptions = [] } = useQuery<DeviceOption[]>({
     queryKey: ["devices-filter"],
     queryFn: async () => {
@@ -139,12 +113,14 @@ export function AttendanceView() {
   });
 
   const resetFilters = () => {
-    setDateFrom("");
-    setDateTo("");
-    setEmployeeFilter("all");
-    setDeviceFilter("all");
-    setVerifyModeFilter("all");
-    setPage(1);
+    setDateFrom(""); setDateTo(""); setEmployeeFilter("all"); setDeviceFilter("all"); setVerifyModeFilter("all"); setPage(1);
+  };
+
+  const verifyModeLabels: Record<string, { label: string; color: string }> = {
+    fingerprint: { label: t("attendance.fingerprint"), color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+    card: { label: t("attendance.card"), color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
+    face: { label: t("attendance.face"), color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
+    password: { label: t("attendance.password"), color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   };
 
   if (isLoading) {
@@ -162,154 +138,96 @@ export function AttendanceView() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Attendance Logs</CardTitle>
-              <CardDescription>
-                View and filter attendance records
-              </CardDescription>
+              <CardTitle className="text-base">{t("attendance.title")}</CardTitle>
+              <CardDescription>{t("attendance.subtitle")}</CardDescription>
             </div>
             <Button variant="outline" className="gap-2" disabled>
               <Download className="h-4 w-4" />
-              Export
+              {t("attendance.export")}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
           <div className="flex flex-col gap-3 mb-4">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                  className="w-full sm:w-40"
-                  placeholder="From"
-                />
-                <span className="text-muted-foreground text-sm">to</span>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                  className="w-full sm:w-40"
-                  placeholder="To"
-                />
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="w-full sm:w-40" />
+                <span className="text-muted-foreground text-sm">{t("attendance.to")}</span>
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="w-full sm:w-40" />
               </div>
               <Select value={employeeFilter} onValueChange={(v) => { setEmployeeFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Employee" />
-                </SelectTrigger>
+                <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder={t("attendance.employee")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Employees</SelectItem>
-                  {employeeOptions.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name} ({e.employeeId})
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">{t("attendance.allEmployees")}</SelectItem>
+                  {employeeOptions.map((e) => (<SelectItem key={e.id} value={e.id}>{e.name} ({e.employeeId})</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Select value={deviceFilter} onValueChange={(v) => { setDeviceFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Device" />
-                </SelectTrigger>
+                <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder={t("attendance.device")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Devices</SelectItem>
-                  {deviceOptions.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">{t("attendance.allDevices")}</SelectItem>
+                  {deviceOptions.map((d) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={verifyModeFilter} onValueChange={(v) => { setVerifyModeFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Verify Mode" />
-                </SelectTrigger>
+                <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder={t("attendance.verifyMode")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Modes</SelectItem>
-                  <SelectItem value="fingerprint">Fingerprint</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="face">Face</SelectItem>
-                  <SelectItem value="password">Password</SelectItem>
+                  <SelectItem value="all">{t("attendance.allModes")}</SelectItem>
+                  <SelectItem value="fingerprint">{t("attendance.fingerprint")}</SelectItem>
+                  <SelectItem value="card">{t("attendance.card")}</SelectItem>
+                  <SelectItem value="face">{t("attendance.face")}</SelectItem>
+                  <SelectItem value="password">{t("attendance.password")}</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-1">
                 <Filter className="h-3 w-3" />
-                Reset
+                {t("attendance.reset")}
               </Button>
             </div>
           </div>
 
-          {/* Table */}
           <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead className="hidden sm:table-cell">Device</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Verify Mode</TableHead>
-                  <TableHead>IO Mode</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t("attendance.employee")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("attendance.device")}</TableHead>
+                  <TableHead>{t("attendance.timestamp")}</TableHead>
+                  <TableHead>{t("attendance.verifyMode")}</TableHead>
+                  <TableHead>{t("attendance.ioMode")}</TableHead>
+                  <TableHead>{t("attendance.status")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.logs.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No attendance records found
-                    </TableCell>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t("attendance.noRecords")}</TableCell>
                   </TableRow>
                 )}
                 {data?.logs.map((log) => {
-                  const vmConfig = verifyModeLabels[log.verifyMode] || {
-                    label: log.verifyMode,
-                    color: "bg-muted text-muted-foreground",
-                  };
+                  const vmConfig = verifyModeLabels[log.verifyMode] || { label: log.verifyMode, color: "bg-muted text-muted-foreground" };
                   return (
                     <TableRow key={log.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-sm">
-                            {log.employee?.name || "Unknown"}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {log.employee?.employeeId}
-                          </p>
+                          <p className="font-medium text-sm">{log.employee?.name || t("attendance.unknown")}</p>
+                          <p className="text-[10px] text-muted-foreground">{log.employee?.employeeId}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-sm">
-                        {log.device.name}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {format(new Date(log.timestamp), "MMM d, yyyy HH:mm:ss")}
+                      <TableCell className="hidden sm:table-cell text-sm">{log.device.name}</TableCell>
+                      <TableCell className="text-sm">{format(new Date(log.timestamp), "MMM d, yyyy HH:mm:ss")}</TableCell>
+                      <TableCell>
+                        <Badge className={`text-[10px] ${vmConfig.color}`}>{vmConfig.label}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className={`text-[10px] ${vmConfig.color}`}>
-                          {vmConfig.label}
+                        <Badge variant="outline" className={`text-[10px] ${log.ioMode === 0 ? "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" : "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"}`}>
+                          {log.ioMode === 0 ? t("attendance.checkIn") : t("attendance.checkOut")}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${
-                            log.ioMode === 0
-                              ? "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400"
-                              : "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                          }`}
-                        >
-                          {log.ioMode === 0 ? "Check-in" : "Check-out"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`text-[10px] ${
-                            log.status === "check-in"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                          }`}
-                        >
+                        <Badge className={`text-[10px] ${log.status === "check-in" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"}`}>
                           {log.status}
                         </Badge>
                       </TableCell>
@@ -320,33 +238,17 @@ export function AttendanceView() {
             </Table>
           </div>
 
-          {/* Pagination */}
           {data && data.totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <p className="text-xs text-muted-foreground">
-                Showing {(page - 1) * limit + 1}–
-                {Math.min(page * limit, data.total)} of {data.total}
+                {t("attendance.showing")} {(page - 1) * limit + 1}–{Math.min(page * limit, data.total)} {t("attendance.of")} {data.total}
               </p>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm">
-                  {page} / {data.totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={page >= data.totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
+                <span className="text-sm">{page} / {data.totalPages}</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/hooks/use-translation";
 import { format } from "date-fns";
 
 // Types
@@ -160,6 +161,7 @@ function getDayLabel(dayOfWeek: number | null, isOffDay: boolean) {
 export function ShiftsView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [activeSubTab, setActiveSubTab] = useState("shifts");
 
   // Shift dialog states
@@ -251,7 +253,7 @@ export function ShiftsView() {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       setAddShiftOpen(false);
       addShiftForm.reset();
-      toast({ title: "Shift created" });
+      toast({ title: t("shifts.shiftCreated") });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -275,7 +277,7 @@ export function ShiftsView() {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       setEditShiftOpen(false);
       setEditingShift(null);
-      toast({ title: "Shift updated" });
+      toast({ title: t("shifts.shiftUpdated") });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -291,7 +293,7 @@ export function ShiftsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       setDeleteShiftId(null);
-      toast({ title: "Shift deleted" });
+      toast({ title: t("shifts.shiftDeleted") });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete shift", variant: "destructive" });
@@ -321,7 +323,7 @@ export function ShiftsView() {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       setAddScheduleOpen(false);
       addScheduleForm.reset();
-      toast({ title: "Schedule created" });
+      toast({ title: t("shifts.scheduleCreated") });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -337,7 +339,7 @@ export function ShiftsView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       setDeleteScheduleId(null);
-      toast({ title: "Schedule deleted" });
+      toast({ title: t("shifts.scheduleDeleted") });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete schedule", variant: "destructive" });
@@ -382,29 +384,29 @@ export function ShiftsView() {
         <TabsList>
           <TabsTrigger value="shifts" className="gap-1.5">
             <Clock className="h-3.5 w-3.5" />
-            Shifts
+            {t("shifts.shifts")}
           </TabsTrigger>
           <TabsTrigger value="schedules" className="gap-1.5">
             <CalendarClock className="h-3.5 w-3.5" />
-            Schedules
+            {t("shifts.schedules")}
           </TabsTrigger>
         </TabsList>
 
         {/* ─── SHIFTS TAB ─── */}
         <TabsContent value="shifts" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Shifts</h2>
+            <h2 className="text-lg font-semibold">{t("shifts.shifts")}</h2>
             <Dialog open={addShiftOpen} onOpenChange={setAddShiftOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
                   <Plus className="h-4 w-4" />
-                  Add Shift
+                  {t("shifts.addShift")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add New Shift</DialogTitle>
-                  <DialogDescription>Define a work shift with times and grace period</DialogDescription>
+                  <DialogTitle>{t("shifts.addNewShift")}</DialogTitle>
+                  <DialogDescription>{t("shifts.addNewShiftDesc")}</DialogDescription>
                 </DialogHeader>
                 <Form {...addShiftForm}>
                   <form
@@ -417,7 +419,7 @@ export function ShiftsView() {
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Name *</FormLabel>
+                            <FormLabel>{t("shifts.name")} *</FormLabel>
                             <FormControl>
                               <Input placeholder="Morning Shift" {...field} />
                             </FormControl>
@@ -430,7 +432,7 @@ export function ShiftsView() {
                         name="nameAr"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Arabic Name</FormLabel>
+                            <FormLabel>{t("shifts.nameAr")}</FormLabel>
                             <FormControl>
                               <Input placeholder="الوردية الصباحية" dir="rtl" {...field} />
                             </FormControl>
@@ -445,7 +447,7 @@ export function ShiftsView() {
                         name="startTime"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Start Time *</FormLabel>
+                            <FormLabel>{t("shifts.startTime")} *</FormLabel>
                             <FormControl>
                               <Input type="time" {...field} />
                             </FormControl>
@@ -458,7 +460,7 @@ export function ShiftsView() {
                         name="endTime"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>End Time *</FormLabel>
+                            <FormLabel>{t("shifts.endTime")} *</FormLabel>
                             <FormControl>
                               <Input type="time" {...field} />
                             </FormControl>
@@ -473,7 +475,7 @@ export function ShiftsView() {
                         name="gracePeriod"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Grace Period (min)</FormLabel>
+                            <FormLabel>{t("shifts.gracePeriod")}</FormLabel>
                             <FormControl>
                               <Input type="number" min={0} max={120} {...field} />
                             </FormControl>
@@ -494,7 +496,7 @@ export function ShiftsView() {
                                 className="h-4 w-4 rounded"
                               />
                             </FormControl>
-                            <FormLabel className="!mt-0">Overnight shift</FormLabel>
+                            <FormLabel className="!mt-0">{t("shifts.overnight")}</FormLabel>
                           </FormItem>
                         )}
                       />
@@ -504,7 +506,7 @@ export function ShiftsView() {
                       name="color"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Color</FormLabel>
+                          <FormLabel>{t("shifts.color")}</FormLabel>
                           <div className="flex items-center gap-2">
                             {shiftColors.map((c) => (
                               <button
@@ -524,14 +526,14 @@ export function ShiftsView() {
                     />
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={() => setAddShiftOpen(false)}>
-                        Cancel
+                        {t("shifts.cancel")}
                       </Button>
                       <Button
                         type="submit"
                         className="bg-emerald-600 hover:bg-emerald-700"
                         disabled={addShiftMutation.isPending}
                       >
-                        {addShiftMutation.isPending ? "Creating..." : "Create Shift"}
+                        {addShiftMutation.isPending ? t("shifts.creating") : t("shifts.createShift")}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -543,9 +545,9 @@ export function ShiftsView() {
           {shifts.length === 0 ? (
             <Card className="p-8 text-center">
               <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="font-semibold mb-1">No shifts yet</h3>
+              <h3 className="font-semibold mb-1">{t("shifts.noShifts")}</h3>
               <p className="text-sm text-muted-foreground">
-                Create shifts to define work schedules
+                {t("shifts.noShiftsDesc")}
               </p>
             </Card>
           ) : (
@@ -614,18 +616,18 @@ export function ShiftsView() {
         {/* ─── SCHEDULES TAB ─── */}
         <TabsContent value="schedules" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Schedules</h2>
+            <h2 className="text-lg font-semibold">{t("shifts.schedules")}</h2>
             <Dialog open={addScheduleOpen} onOpenChange={setAddScheduleOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
                   <Plus className="h-4 w-4" />
-                  Assign Schedule
+                  {t("shifts.assignSchedule")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Assign Schedule</DialogTitle>
-                  <DialogDescription>Assign a shift to an employee</DialogDescription>
+                  <DialogTitle>{t("shifts.assignSchedule")}</DialogTitle>
+                  <DialogDescription>{t("shifts.assignScheduleDesc")}</DialogDescription>
                 </DialogHeader>
                 <Form {...addScheduleForm}>
                   <form
@@ -637,11 +639,11 @@ export function ShiftsView() {
                       name="employeeId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Employee *</FormLabel>
+                          <FormLabel>{t("shifts.employee")} *</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select employee" />
+                                <SelectValue placeholder={t("shifts.employee")} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -661,11 +663,11 @@ export function ShiftsView() {
                       name="shiftId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Shift *</FormLabel>
+                          <FormLabel>{t("shifts.shift")} *</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select shift" />
+                                <SelectValue placeholder={t("shifts.shift")} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -692,7 +694,7 @@ export function ShiftsView() {
                         name="effectiveDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Effective Date *</FormLabel>
+                            <FormLabel>{t("shifts.effectiveDate")} *</FormLabel>
                             <FormControl>
                               <Input type="date" {...field} />
                             </FormControl>
