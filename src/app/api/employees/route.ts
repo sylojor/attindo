@@ -1,0 +1,181 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+
+// GET /api/employees - List employees with pagination, search, and filters
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const search = searchParams.get("search") || "";
+    const department = searchParams.get("department") || "";
+    const isActiveParam = searchParams.get("isActive");
+
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where: Record<string, unknown> = {};
+
+    if (isActiveParam !== null && isActiveParam !== "") {
+      where.isActive = isActiveParam === "true";
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { nameAr: { contains: search } },
+        { employeeId: { contains: search } },
+        { email: { contains: search } },
+        { phone: { contains: search } },
+      ];
+    }
+
+    if (department) {
+      where.department = department;
+    }
+
+    const [employees, total] = await Promise.all([
+      db.employee.findMany({
+        where,
+        include: {
+          shift: true,
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+      }),
+      db.employee.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      employees,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to fetch employees";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// POST /api/employees - Create a new employee
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { employeeId, name, nameAr, department, position, phone, email, fingerprintId, shiftId } = body;
+
+    // Validate required fields
+    if (!employeeId || !name) {
+      return NextResponse.json(
+        { error: "employeeId and name are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check for duplicate employeeId
+    const existing = await db.employee.findUnique({
+      where: { employeeId },
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "Employee ID already exists" },
+        { status: 409 }
+      );
+    }
+
+    // Auto-assign fingerprintId if not provided
+    let assignedFingerprintId = fingerprintId;
+    if (assignedFingerprintId === undefined || assignedFingerprintId === null) {
+      const maxFingerprint = await db.employee.findMany({
+        where: { fingerprintId: { not: null } },
+        select: { fingerprintId: true },
+        orderBy: { fingerprintId: "desc" },
+        take: 1,
+      });
+      assignedFingerprintId =
+        maxFingerprint.length > 0 && maxFingerprint[0].fingerprintId !== null
+          ? maxFingerprint[0].fingerprintId + 1
+          : 1;
+    } else {
+      // Check fingerprintId uniqueness
+      const existingFingerprint = await db.employee.findFirst({
+        where: { fingerprintId: assignedFingerprintId },
+      });
+      if (existingFingerprint) {
+        return NextResponse.json(
+          { error: "Fingerprint ID already assigned to another employee" },
+          { status: 409 }
+        );
+      }
+    }
+
+    const employee = await db.employee.create({
+      data: {
+        employeeId,
+        name,
+        nameAr: nameAr || null,
+        department: department || null,
+        position: position || null,
+        phone: phone || null,
+        email: email || null,
+        fingerprintId: assignedFingerprintId,
+        shiftId: shiftId || null,
+      },
+      include: {
+        shift: true,
+      },
+    });
+
+    // Trigger employee upload to devices (non-blocking)
+    uploadEmployeeToDevices(employee).catch((err) => {
+      console.error("[Employees] Failed to upload employee to devices:", err);
+    });
+
+    return NextResponse.json(employee, { status: 201 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to create employee";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// Helper: Upload employee data to all active devices
+async function uploadEmployeeToDevices(employee: {
+  id: string;
+  employeeId: string;
+  name: string;
+  fingerprintId: number | null;
+}) {
+  try {
+    const devices = await db.device.findMany({
+      where: { isActive: true },
+    });
+
+    for (const device of devices) {
+      // Create DeviceEmployee record
+      const existingAssignment = await db.deviceEmployee.findUnique({
+        where: {
+          deviceId_employeeId: {
+            deviceId: device.id,
+            employeeId: employee.id,
+          },
+        },
+      });
+
+      if (!existingAssignment && employee.fingerprintId !== null) {
+        await db.deviceEmployee.create({
+          data: {
+            deviceId: device.id,
+            employeeId: employee.id,
+            fingerprintId: employee.fingerprintId,
+            isUploaded: false,
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[Employees] Error uploading employee to devices:", err);
+  }
+}

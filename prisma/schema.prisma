@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Attindo HR/Payroll - Database Schema
+// v1.13.0
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +10,125 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Employee {
+  id           String   @id @default(cuid())
+  employeeId   String   @unique // Company employee ID (e.g., EMP-001)
+  name         String
+  nameAr       String?  // Arabic name
+  department   String?
+  position     String?
+  phone        String?
+  email        String?
+  fingerprintId Int?    // ID on the fingerprint device
+  photoUrl     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shiftId      String?
+  shift        Shift?   @relation(fields: [shiftId], references: [id])
+  attendanceLogs AttendanceLog[]
+  schedules    Schedule[]
+  deviceAssignments DeviceEmployee[]
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Device {
+  id           String   @id @default(cuid())
+  name         String
+  ip           String
+  port         Int      @default(4370)
+  deviceType   String   @default("ZKTeco") // ZKTeco, ZK
+  serialNumber String?
+  firmware     String?
+  status       String   @default("offline") // online, offline, syncing, error
+  lastSyncAt   DateTime?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  attendanceLogs AttendanceLog[]
+  syncLogs     SyncLog[]
+  deviceEmployees DeviceEmployee[]
+}
+
+model AttendanceLog {
+  id           String   @id @default(cuid())
+  employeeId   String?
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  deviceId     String
+  device       Device   @relation(fields: [deviceId], references: [id])
+  timestamp    DateTime
+  verifyMode   String   @default("fingerprint") // fingerprint, card, password, face
+  status       String   @default("check-in") // check-in, check-out
+  ioMode       Int      @default(0) // 0=check-in, 1=check-out
+  workCode     Int      @default(0)
+  syncedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([timestamp])
+  @@index([deviceId])
+}
+
+model Shift {
+  id           String   @id @default(cuid())
+  name         String
+  nameAr       String?
+  startTime    String   // HH:mm format
+  endTime      String   // HH:mm format
+  gracePeriod  Int      @default(15) // minutes grace period for late
+  isOvernight  Boolean  @default(false) // shift crosses midnight
+  color        String   @default("#10b981") // UI color
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employees   Employee[]
+  schedules   Schedule[]
+}
+
+model Schedule {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  shiftId      String
+  shift        Shift    @relation(fields: [shiftId], references: [id])
+  effectiveDate DateTime // When this schedule takes effect
+  dayOfWeek    Int?     // 0=Sunday, 1=Monday, ..., 6=Saturday (null = every day)
+  endDate      DateTime? // When this schedule ends (null = indefinite)
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([shiftId])
+}
+
+model SyncLog {
+  id             String   @id @default(cuid())
+  deviceId       String
+  device         Device   @relation(fields: [deviceId], references: [id])
+  syncType       String   // full, incremental, employee-upload
+  status         String   // pending, running, completed, failed
+  recordsFetched Int      @default(0)
+  recordsUploaded Int     @default(0)
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([deviceId])
+  @@index([status])
+}
+
+model DeviceEmployee {
+  id           String   @id @default(cuid())
+  deviceId     String
+  device       Device   @relation(fields: [deviceId], references: [id])
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  fingerprintId Int     // ID assigned on the device
+  isUploaded   Boolean  @default(false) // whether employee data is uploaded to device
+  lastSyncAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([deviceId, employeeId])
+  @@unique([deviceId, fingerprintId])
 }
