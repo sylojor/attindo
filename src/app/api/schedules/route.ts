@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { employeeId, shiftId, effectiveDate, dayOfWeek, endDate } = body;
+    const { employeeId, shiftId, effectiveDate, dayOfWeek, isOffDay, endDate } = body;
 
     // Validate required fields
     if (!employeeId || !shiftId || !effectiveDate) {
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
         shiftId,
         effectiveDate: new Date(effectiveDate),
         dayOfWeek: dayOfWeek !== undefined ? dayOfWeek : null,
+        isOffDay: isOffDay === true,
         endDate: endDate ? new Date(endDate) : null,
       },
       include: {

@@ -13,6 +13,7 @@ import {
   Clock,
   Moon,
   Sun,
+  Palmtree,
 } from "lucide-react";
 import {
   Card,
@@ -93,6 +94,7 @@ interface Schedule {
   shiftId: string;
   effectiveDate: string;
   dayOfWeek: number | null;
+  isOffDay: boolean;
   endDate: string | null;
   employee: {
     id: string;
@@ -128,6 +130,7 @@ const scheduleSchema = z.object({
   shiftId: z.string().min(1, "Shift is required"),
   effectiveDate: z.string().min(1, "Effective date is required"),
   dayOfWeek: z.string().optional().default("all"),
+  isOffDay: z.boolean().default(false),
   endDate: z.string().optional().default(""),
 });
 
@@ -210,6 +213,7 @@ export function ShiftsView() {
       shiftId: "",
       effectiveDate: format(new Date(), "yyyy-MM-dd"),
       dayOfWeek: "all",
+      isOffDay: false,
       endDate: "",
     },
   });
@@ -288,6 +292,7 @@ export function ShiftsView() {
         body: JSON.stringify({
           ...values,
           dayOfWeek: values.dayOfWeek && values.dayOfWeek !== "all" ? Number(values.dayOfWeek) : null,
+          isOffDay: values.isOffDay,
           endDate: values.endDate || null,
         }),
       });
@@ -708,6 +713,34 @@ export function ShiftsView() {
                     </div>
                     <FormField
                       control={addScheduleForm.control}
+                      name="isOffDay"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-3 rounded-lg border p-3 bg-amber-50 dark:bg-amber-950/20">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded accent-amber-600"
+                            />
+                          </FormControl>
+                          <div className="flex items-center gap-2">
+                            <Palmtree className="h-4 w-4 text-amber-600" />
+                            <div>
+                              <FormLabel className="!mt-0 text-sm font-medium cursor-pointer">
+                                يوم عطلة / Day Off
+                              </FormLabel>
+                              <p className="text-[11px] text-muted-foreground">
+                                Mark this schedule as a day off (no attendance expected)
+                              </p>
+                            </div>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addScheduleForm.control}
                       name="endDate"
                       render={({ field }) => (
                         <FormItem>
@@ -756,13 +789,14 @@ export function ShiftsView() {
                         <TableHead>Shift</TableHead>
                         <TableHead>Effective Date</TableHead>
                         <TableHead className="hidden sm:table-cell">Day</TableHead>
+                        <TableHead className="hidden md:table-cell">Type</TableHead>
                         <TableHead className="hidden md:table-cell">End Date</TableHead>
                         <TableHead className="w-16">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {schedules.map((schedule) => (
-                        <TableRow key={schedule.id}>
+                        <TableRow key={schedule.id} className={schedule.isOffDay ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
                           <TableCell>
                             <div>
                               <p className="font-medium text-sm">
@@ -774,13 +808,20 @@ export function ShiftsView() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="flex items-center gap-1.5 text-sm">
-                              <span
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: schedule.shift.color }}
-                              />
-                              {schedule.shift.name}
-                            </span>
+                            {schedule.isOffDay ? (
+                              <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300 bg-amber-100 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950/30">
+                                <Palmtree className="h-3 w-3" />
+                                يوم عطلة
+                              </Badge>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-sm">
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: schedule.shift.color }}
+                                />
+                                {schedule.shift.name}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm">
                             {format(new Date(schedule.effectiveDate), "MMM d, yyyy")}
@@ -789,6 +830,18 @@ export function ShiftsView() {
                             {schedule.dayOfWeek !== null
                               ? dayNames[schedule.dayOfWeek]
                               : "Every day"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {schedule.isOffDay ? (
+                              <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-100 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950/30 text-[10px]">
+                                <Palmtree className="h-3 w-3 mr-1" />
+                                Day Off
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-100 dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/30 text-[10px]">
+                                Work Day
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                             {schedule.endDate

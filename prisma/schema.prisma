@@ -106,6 +106,7 @@ model Schedule {
   shift        Shift    @relation(fields: [shiftId], references: [id])
   effectiveDate DateTime // When this schedule takes effect
   dayOfWeek    Int?     // 0=Sunday, 1=Monday, ..., 6=Saturday (null = every day)
+  isOffDay     Boolean  @default(false) // Mark this as a day off (عطلة)
   endDate      DateTime? // When this schedule ends (null = indefinite)
   createdAt    DateTime @default(now())
 

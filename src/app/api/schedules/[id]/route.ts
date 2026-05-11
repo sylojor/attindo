@@ -10,7 +10,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const { employeeId, shiftId, effectiveDate, dayOfWeek, endDate } = body;
+    const { employeeId, shiftId, effectiveDate, dayOfWeek, isOffDay, endDate } = body;
 
     const existing = await db.schedule.findUnique({ where: { id } });
     if (!existing) {
@@ -48,6 +48,7 @@ export async function PUT(
         ...(shiftId !== undefined && { shiftId }),
         ...(effectiveDate !== undefined && { effectiveDate: new Date(effectiveDate) }),
         ...(dayOfWeek !== undefined && { dayOfWeek }),
+        ...(isOffDay !== undefined && { isOffDay }),
         ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
       },
       include: {
