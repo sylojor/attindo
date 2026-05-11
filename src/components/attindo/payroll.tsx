@@ -1288,7 +1288,7 @@ export function PayrollView() {
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             <Badge variant="outline" className="text-xs">
-                              {emp.department || "N/A"}
+                              {emp.department?.name || "N/A"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right text-sm">
