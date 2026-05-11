@@ -127,7 +127,7 @@ const scheduleSchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
   shiftId: z.string().min(1, "Shift is required"),
   effectiveDate: z.string().min(1, "Effective date is required"),
-  dayOfWeek: z.string().optional().default(""),
+  dayOfWeek: z.string().optional().default("all"),
   endDate: z.string().optional().default(""),
 });
 
@@ -209,7 +209,7 @@ export function ShiftsView() {
       employeeId: "",
       shiftId: "",
       effectiveDate: format(new Date(), "yyyy-MM-dd"),
-      dayOfWeek: "",
+      dayOfWeek: "all",
       endDate: "",
     },
   });
@@ -287,7 +287,7 @@ export function ShiftsView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          dayOfWeek: values.dayOfWeek ? Number(values.dayOfWeek) : null,
+          dayOfWeek: values.dayOfWeek && values.dayOfWeek !== "all" ? Number(values.dayOfWeek) : null,
           endDate: values.endDate || null,
         }),
       });
@@ -693,7 +693,7 @@ export function ShiftsView() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="">Every day</SelectItem>
+                                <SelectItem value="all">Every day</SelectItem>
                                 {dayNames.map((d, i) => (
                                   <SelectItem key={i} value={String(i)}>
                                     {d}
