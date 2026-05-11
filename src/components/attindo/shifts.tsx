@@ -142,6 +142,20 @@ const shiftColors = [
 ];
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const dayNamesAr = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const dayNamesBilingual = dayNames.map((d, i) => `${dayNamesAr[i]} / ${d}`);
+
+function getDayLabel(dayOfWeek: number | null, isOffDay: boolean) {
+  if (isOffDay) {
+    const dayAr = dayOfWeek !== null ? dayNamesAr[dayOfWeek] : "كل يوم";
+    const dayEn = dayOfWeek !== null ? dayNames[dayOfWeek] : "Every day";
+    return `🌴 عطلة ${dayAr} / Day Off ${dayEn}`;
+  }
+  if (dayOfWeek !== null) {
+    return `${dayNamesAr[dayOfWeek]} / ${dayNames[dayOfWeek]}`;
+  }
+  return "كل يوم / Every day";
+}
 
 export function ShiftsView() {
   const queryClient = useQueryClient();
@@ -217,6 +231,7 @@ export function ShiftsView() {
       endDate: "",
     },
   });
+  const watchedDayOfWeek = addScheduleForm.watch("dayOfWeek");
 
   // Shift mutations
   const addShiftMutation = useMutation({
@@ -690,16 +705,16 @@ export function ShiftsView() {
                         name="dayOfWeek"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Day of Week</FormLabel>
+                            <FormLabel>اليوم / Day of Week</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Every day" />
+                                  <SelectValue placeholder="كل يوم / Every day" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="all">Every day</SelectItem>
-                                {dayNames.map((d, i) => (
+                                <SelectItem value="all">كل يوم / Every day</SelectItem>
+                                {dayNamesBilingual.map((d, i) => (
                                   <SelectItem key={i} value={String(i)}>
                                     {d}
                                   </SelectItem>
@@ -731,7 +746,10 @@ export function ShiftsView() {
                                 يوم عطلة / Day Off
                               </FormLabel>
                               <p className="text-[11px] text-muted-foreground">
-                                Mark this schedule as a day off (no attendance expected)
+                                {watchedDayOfWeek && watchedDayOfWeek !== "all"
+                                  ? `عطلة يوم ${dayNamesAr[Number(watchedDayOfWeek)]} / Day off on ${dayNames[Number(watchedDayOfWeek)]}`
+                                  : "حدد اليوم أعلاه ثم فعّل هذا الخيار / Pick a day above then check this"
+                                }
                               </p>
                             </div>
                           </div>
@@ -785,13 +803,13 @@ export function ShiftsView() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Shift</TableHead>
-                        <TableHead>Effective Date</TableHead>
-                        <TableHead className="hidden sm:table-cell">Day</TableHead>
-                        <TableHead className="hidden md:table-cell">Type</TableHead>
-                        <TableHead className="hidden md:table-cell">End Date</TableHead>
-                        <TableHead className="w-16">Actions</TableHead>
+                        <TableHead>الموظف / Employee</TableHead>
+                        <TableHead>الوردية / Shift</TableHead>
+                        <TableHead>من تاريخ / Effective</TableHead>
+                        <TableHead className="hidden sm:table-cell">اليوم / Day</TableHead>
+                        <TableHead className="hidden md:table-cell">النوع / Type</TableHead>
+                        <TableHead className="hidden md:table-cell">إلى تاريخ / End</TableHead>
+                        <TableHead className="w-16"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -826,27 +844,25 @@ export function ShiftsView() {
                           <TableCell className="text-sm">
                             {format(new Date(schedule.effectiveDate), "MMM d, yyyy")}
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                            {schedule.dayOfWeek !== null
-                              ? dayNames[schedule.dayOfWeek]
-                              : "Every day"}
+                          <TableCell className="hidden sm:table-cell text-sm">
+                            {getDayLabel(schedule.dayOfWeek, schedule.isOffDay)}
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
                             {schedule.isOffDay ? (
                               <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-100 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950/30 text-[10px]">
                                 <Palmtree className="h-3 w-3 mr-1" />
-                                Day Off
+                                عطلة / Off
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-100 dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/30 text-[10px]">
-                                Work Day
+                                عمل / Work
                               </Badge>
                             )}
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                             {schedule.endDate
                               ? format(new Date(schedule.endDate), "MMM d, yyyy")
-                              : "Indefinite"}
+                              : "مفتوح / Indefinite"}
                           </TableCell>
                           <TableCell>
                             <Button
