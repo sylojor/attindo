@@ -31,7 +31,7 @@ import { useTranslation } from "@/hooks/use-translation";
 import { useAppStore } from "@/store/app-store";
 import type { Lang } from "@/lib/i18n";
 
-const CURRENCIES = [
+export const CURRENCIES = [
   { value: "SAR", label: "SAR - Saudi Riyal / ريال سعودي" },
   { value: "JOD", label: "JOD - Jordanian Dinar / دينار أردني" },
   { value: "USD", label: "USD - US Dollar / دولار أمريكي" },
@@ -56,7 +56,7 @@ export function SettingsView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useTranslation();
-  const { setLang } = useAppStore();
+  const { setLang, setCurrency: setStoreCurrency } = useAppStore();
 
   const [currency, setCurrency] = React.useState("SAR");
   const [language, setLanguage] = React.useState<string>(lang);
@@ -79,8 +79,10 @@ export function SettingsView() {
       setLanguage(data.lang);
       setCompanyName(data.companyName);
       setCompanyNameAr(data.companyNameAr);
+      // Also sync to global store so other components can use it
+      setStoreCurrency(data.currency);
     }
-  }, [data]);
+  }, [data, setStoreCurrency]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -99,6 +101,7 @@ export function SettingsView() {
     },
     onSuccess: () => {
       setLang(language as Lang);
+      setStoreCurrency(currency);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast({ title: t("settings.saved") });
     },

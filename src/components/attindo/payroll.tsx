@@ -87,6 +87,18 @@ function formatCurrency(amount: number, currency = "SAR"): string {
   })}`;
 }
 
+// Hook to get currency from store
+function useCurrency() {
+  const { currency } = useAppStore();
+  return currency;
+}
+
+// Format currency using the store currency
+function useFormatCurrency() {
+  const currency = useCurrency();
+  return (amount: number) => formatCurrency(amount, currency);
+}
+
 function periodStatusBadge(status: string) {
   const map: Record<string, { label: string; className: string }> = {
     draft: {
@@ -330,13 +342,14 @@ function SalaryGrossPreview({ control }: { control: Control<SalaryFormValues> })
   const transportAllowance = useWatch({ control, name: "transportAllowance" }) || 0;
   const foodAllowance = useWatch({ control, name: "foodAllowance" }) || 0;
   const otherAllowances = useWatch({ control, name: "otherAllowances" }) || 0;
+  const currency = useCurrency();
 
   return (
     <div className="bg-muted/50 rounded-lg p-3 text-sm">
       <div className="flex justify-between">
         <span className="text-muted-foreground">Gross Monthly Salary</span>
         <span className="font-semibold text-emerald-600">
-          {formatCurrency(basicSalary + housingAllowance + transportAllowance + foodAllowance + otherAllowances)}
+          {formatCurrency(basicSalary + housingAllowance + transportAllowance + foodAllowance + otherAllowances, currency)}
         </span>
       </div>
     </div>
@@ -362,6 +375,7 @@ function LoansTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const currency = useCurrency();
 
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -567,13 +581,13 @@ function LoansTab() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-sm font-medium">
-                        {formatCurrency(loan.amount)}
+                        {formatCurrency(loan.amount, currency)}
                       </TableCell>
                       <TableCell className="text-right text-sm hidden sm:table-cell">
-                        {formatCurrency(loan.monthlyDeduction)}
+                        {formatCurrency(loan.monthlyDeduction, currency)}
                       </TableCell>
                       <TableCell className="text-right text-sm hidden md:table-cell">
-                        {formatCurrency(loan.remainingBalance)}
+                        {formatCurrency(loan.remainingBalance, currency)}
                       </TableCell>
                       <TableCell>{statusBadge(loan.status)}</TableCell>
                       <TableCell>
@@ -625,6 +639,7 @@ export function PayrollView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const currency = useCurrency();
   const [activeSubTab, setActiveSubTab] = useState("salary-setup");
 
   // ─── Queries: shared ───
@@ -1292,23 +1307,23 @@ export function PayrollView() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right text-sm">
-                            {ss ? formatCurrency(ss.basicSalary) : <Badge variant="secondary" className="text-xs">Not Set</Badge>}
+                            {ss ? formatCurrency(ss.basicSalary, currency) : <Badge variant="secondary" className="text-xs">Not Set</Badge>}
                           </TableCell>
                           <TableCell className="text-right text-sm hidden md:table-cell">
-                            {ss ? formatCurrency(ss.housingAllowance) : "—"}
+                            {ss ? formatCurrency(ss.housingAllowance, currency) : "—"}
                           </TableCell>
                           <TableCell className="text-right text-sm hidden lg:table-cell">
-                            {ss ? formatCurrency(ss.transportAllowance) : "—"}
+                            {ss ? formatCurrency(ss.transportAllowance, currency) : "—"}
                           </TableCell>
                           <TableCell className="text-right text-sm hidden lg:table-cell">
-                            {ss ? formatCurrency(ss.foodAllowance) : "—"}
+                            {ss ? formatCurrency(ss.foodAllowance, currency) : "—"}
                           </TableCell>
                           <TableCell className="text-right text-sm hidden xl:table-cell">
-                            {ss ? formatCurrency(ss.otherAllowances) : "—"}
+                            {ss ? formatCurrency(ss.otherAllowances, currency) : "—"}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-sm">
                             {ss ? (
-                              <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(gross)}</span>
+                              <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(gross, currency)}</span>
                             ) : (
                               "—"
                             )}
@@ -1427,19 +1442,19 @@ export function PayrollView() {
                     <div className="space-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Total Gross</span>
-                        <span className="font-medium">{formatCurrency(period.totalGross)}</span>
+                        <span className="font-medium">{formatCurrency(period.totalGross, currency)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Deductions</span>
                         <span className="font-medium text-destructive">
-                          {period.totalDeductions > 0 ? `-${formatCurrency(period.totalDeductions)}` : formatCurrency(0)}
+                          {period.totalDeductions > 0 ? `-${formatCurrency(period.totalDeductions, currency)}` : formatCurrency(0, currency)}
                         </span>
                       </div>
                       <Separator />
                       <div className="flex justify-between">
                         <span className="font-semibold">Total Net</span>
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          {formatCurrency(period.totalNet)}
+                          {formatCurrency(period.totalNet, currency)}
                         </span>
                       </div>
                     </div>
@@ -1567,20 +1582,20 @@ export function PayrollView() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right text-sm">
-                            {formatCurrency(ps.basicSalary)}
+                            {formatCurrency(ps.basicSalary, currency)}
                           </TableCell>
                           <TableCell className="text-right text-sm hidden md:table-cell">
-                            {formatCurrency(ps.totalAllowances)}
+                            {formatCurrency(ps.totalAllowances, currency)}
                           </TableCell>
                           <TableCell className="text-right text-sm hidden md:table-cell">
-                            {formatCurrency(ps.overtimePay)}
+                            {formatCurrency(ps.overtimePay, currency)}
                           </TableCell>
                           <TableCell className="text-right text-sm text-destructive hidden lg:table-cell">
-                            {formatCurrency(ps.totalDeductions)}
+                            {formatCurrency(ps.totalDeductions, currency)}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-sm">
                             <span className="text-emerald-600 dark:text-emerald-400">
-                              {formatCurrency(ps.netSalary)}
+                              {formatCurrency(ps.netSalary, currency)}
                             </span>
                           </TableCell>
                           <TableCell>{payslipStatusBadge(ps.status)}</TableCell>
@@ -1689,7 +1704,7 @@ export function PayrollView() {
                             <TableCell className="text-right text-sm">
                               {a.type === "percentage"
                                 ? `${a.amount}%`
-                                : formatCurrency(a.amount)}
+                                : formatCurrency(a.amount, currency)}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-[10px]">
@@ -1793,7 +1808,7 @@ export function PayrollView() {
                             <TableCell className="text-right text-sm text-destructive">
                               {d.type === "percentage"
                                 ? `${d.amount}%`
-                                : formatCurrency(d.amount)}
+                                : formatCurrency(d.amount, currency)}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-[10px]">
@@ -2225,16 +2240,16 @@ export function PayrollView() {
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span>Basic Salary</span>
-                    <span>{formatCurrency(payslipDetail.basicSalary)}</span>
+                    <span>{formatCurrency(payslipDetail.basicSalary, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Allowances</span>
-                    <span>{formatCurrency(payslipDetail.totalAllowances)}</span>
+                    <span>{formatCurrency(payslipDetail.totalAllowances, currency)}</span>
                   </div>
                   {payslipDetail.overtimePay > 0 && (
                     <div className="flex justify-between">
                       <span>Overtime Pay</span>
-                      <span>{formatCurrency(payslipDetail.overtimePay)}</span>
+                      <span>{formatCurrency(payslipDetail.overtimePay, currency)}</span>
                     </div>
                   )}
                 </div>
@@ -2248,7 +2263,7 @@ export function PayrollView() {
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between text-destructive">
                     <span>Total Deductions</span>
-                    <span>{formatCurrency(payslipDetail.totalDeductions)}</span>
+                    <span>{formatCurrency(payslipDetail.totalDeductions, currency)}</span>
                   </div>
                 </div>
               </div>
@@ -2260,7 +2275,7 @@ export function PayrollView() {
                 <div className="flex justify-between items-center">
                   <span className="text-base font-bold">Net Salary</span>
                   <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatCurrency(payslipDetail.netSalary)}
+                    {formatCurrency(payslipDetail.netSalary, currency)}
                   </span>
                 </div>
               </div>

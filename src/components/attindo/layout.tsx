@@ -10,6 +10,7 @@ import {
   Clock,
   CalendarClock,
   Banknote,
+  FileBarChart,
   Settings,
   Moon,
   Sun,
@@ -30,15 +31,31 @@ import { DevicesView } from "./devices";
 import { AttendanceView } from "./attendance";
 import { ShiftsView } from "./shifts";
 import { PayrollView } from "./payroll";
+import { ReportsView } from "./reports";
 import { SettingsView } from "./settings";
 
 const APP_VERSION = "v2.0.0";
 
 export function AttindoLayout() {
-  const { activeTab, setActiveTab, syncProgress, isGlobalSyncing, lang, setLang } = useAppStore();
+  const { activeTab, setActiveTab, syncProgress, isGlobalSyncing, lang, setLang, setCurrency } = useAppStore();
   const { theme, setTheme } = useTheme();
   const { isConnected } = useSocket();
   const { t, isRtl } = useTranslation();
+
+  // Load settings on mount
+  React.useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data) {
+          setCurrency(data.currency);
+          if (data.lang && (data.lang === "ar" || data.lang === "en")) {
+            setLang(data.lang);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [setCurrency, setLang]);
 
   const mounted = React.useSyncExternalStore(
     () => () => {},
@@ -54,6 +71,7 @@ export function AttindoLayout() {
     { id: "attendance", label: t("nav.attendance"), icon: Clock },
     { id: "shifts", label: t("nav.shifts"), icon: CalendarClock },
     { id: "payroll", label: t("nav.payroll"), icon: Banknote },
+    { id: "reports", label: t("nav.reports"), icon: FileBarChart },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ];
 
@@ -84,6 +102,8 @@ export function AttindoLayout() {
         return <ShiftsView />;
       case "payroll":
         return <PayrollView />;
+      case "reports":
+        return <ReportsView />;
       case "settings":
         return <SettingsView />;
       default:

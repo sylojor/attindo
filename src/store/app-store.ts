@@ -19,12 +19,14 @@ export interface DeviceStatus {
 interface AppState {
   activeTab: string;
   lang: Lang;
+  currency: string;
   syncProgress: Record<string, SyncProgress>;
   deviceStatuses: Record<string, DeviceStatus>;
   isGlobalSyncing: boolean;
 
   setActiveTab: (tab: string) => void;
   setLang: (lang: Lang) => void;
+  setCurrency: (currency: string) => void;
   updateSyncProgress: (deviceId: string, progress: SyncProgress) => void;
   removeSyncProgress: (deviceId: string) => void;
   updateDeviceStatus: (deviceId: string, status: DeviceStatus) => void;
@@ -35,12 +37,14 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   activeTab: "dashboard",
   lang: "ar",
+  currency: "SAR",
   syncProgress: {},
   deviceStatuses: {},
   isGlobalSyncing: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setLang: (lang) => set({ lang }),
+  setCurrency: (currency) => set({ currency }),
 
   updateSyncProgress: (deviceId, progress) =>
     set((state) => ({
