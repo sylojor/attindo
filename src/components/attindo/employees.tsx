@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -610,23 +610,57 @@ export function EmployeesView() {
   const [profileOpen, setProfileOpen] = useState(false);
   const limit = 20;
 
-  const { data, isLoading } = useQuery<EmployeesResponse>({
-    queryKey: ["employees", page, search, departmentFilter, statusFilter],
+  // Fetch ALL employees at once - we'll filter client-side
+  const { data: allData, isLoading } = useQuery<EmployeesResponse>({
+    queryKey: ["employees", "all"],
     queryFn: async () => {
       const params = new URLSearchParams({
-        page: String(page),
-        limit: String(limit),
+        page: "1",
+        limit: "9999",
       });
-      if (search) params.set("search", search);
-      if (departmentFilter && departmentFilter !== "all")
-        params.set("departmentId", departmentFilter);
-      if (statusFilter && statusFilter !== "all")
-        params.set("isActive", statusFilter);
       const res = await fetch(`/api/employees?${params}`);
       if (!res.ok) throw new Error("Failed to fetch employees");
       return res.json();
     },
   });
+
+  // Client-side filtering
+  const filteredEmployees = useMemo(() => {
+    let result = allData?.employees ?? [];
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (emp) =>
+          emp.employeeId.toLowerCase().includes(q) ||
+          emp.name.toLowerCase().includes(q) ||
+          (emp.nameAr && emp.nameAr.toLowerCase().includes(q)) ||
+          (emp.position && emp.position.toLowerCase().includes(q)) ||
+          (emp.phone && emp.phone.includes(q)) ||
+          (emp.fingerprintId != null && String(emp.fingerprintId).includes(q))
+      );
+    }
+
+    if (departmentFilter && departmentFilter !== "all") {
+      result = result.filter((emp) => emp.departmentId === departmentFilter);
+    }
+
+    if (statusFilter && statusFilter !== "all") {
+      const isActive = statusFilter === "true";
+      result = result.filter((emp) => emp.isActive === isActive);
+    }
+
+    return result;
+  }, [allData?.employees, search, departmentFilter, statusFilter]);
+
+  // Client-side pagination
+  const totalFiltered = filteredEmployees.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / limit));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedEmployees = useMemo(() => {
+    const start = (currentPage - 1) * limit;
+    return filteredEmployees.slice(start, start + limit);
+  }, [filteredEmployees, currentPage, limit]);
 
   const { data: shifts = [] } = useQuery<Shift[]>({
     queryKey: ["shifts-list"],
@@ -761,8 +795,19 @@ export function EmployeesView() {
     [editForm]
   );
 
+  // Reset page when search/filter changes
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
+    setPage(1);
+  };
+
+  const handleDepartmentFilter = (v: string) => {
+    setDepartmentFilter(v);
+    setPage(1);
+  };
+
+  const handleStatusFilter = (v: string) => {
+    setStatusFilter(v);
     setPage(1);
   };
 
@@ -997,7 +1042,7 @@ export function EmployeesView() {
                 className="pl-9"
               />
             </div>
-            <Select value={departmentFilter} onValueChange={(v) => { setDepartmentFilter(v); setPage(1); }}>
+            <Select value={departmentFilter} onValueChange={handleDepartmentFilter}>
               <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder={t("employees.department")} />
               </SelectTrigger>
@@ -1010,7 +1055,7 @@ export function EmployeesView() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+            <Select value={statusFilter} onValueChange={handleStatusFilter}>
               <SelectTrigger className="w-full sm:w-32">
                 <SelectValue placeholder={t("employees.status")} />
               </SelectTrigger>
@@ -1039,14 +1084,14 @@ export function EmployeesView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.employees.length === 0 && (
+                {paginatedEmployees.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       {t("employees.noEmployees")}
                     </TableCell>
                   </TableRow>
                 )}
-                {data?.employees.map((emp) => (
+                {paginatedEmployees.map((emp) => (
                   <TableRow
                     key={emp.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -1109,18 +1154,18 @@ export function EmployeesView() {
           </div>
 
           {/* Pagination */}
-          {data && data.totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <p className="text-xs text-muted-foreground">
-                {t("employees.showing")} {(page - 1) * limit + 1}–
-                {Math.min(page * limit, data.total)} {t("employees.of")} {data.total}
+                {t("employees.showing")} {(currentPage - 1) * limit + 1}–
+                {Math.min(currentPage * limit, totalFiltered)} {t("employees.of")} {totalFiltered}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm">{page} / {data.totalPages}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
+                <span className="text-sm">{currentPage} / {totalPages}</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
