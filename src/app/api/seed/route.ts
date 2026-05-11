@@ -239,6 +239,149 @@ export async function POST() {
       }
     }
 
+    // ── Create Salary Structures ──
+    const salaryLevels: Record<string, { basicSalary: number; housingAllowance: number; transportAllowance: number; foodAllowance: number }> = {
+      manager: { basicSalary: 12000, housingAllowance: 3000, transportAllowance: 1000, foodAllowance: 500 },
+      senior: { basicSalary: 10000, housingAllowance: 2500, transportAllowance: 800, foodAllowance: 400 },
+      specialist: { basicSalary: 8000, housingAllowance: 2000, transportAllowance: 600, foodAllowance: 300 },
+      analyst: { basicSalary: 8000, housingAllowance: 2000, transportAllowance: 600, foodAllowance: 300 },
+      accountant: { basicSalary: 8000, housingAllowance: 2000, transportAllowance: 600, foodAllowance: 300 },
+      default: { basicSalary: 6000, housingAllowance: 1500, transportAllowance: 500, foodAllowance: 250 },
+    };
+
+    for (const emp of employees) {
+      const pos = emp.position?.toLowerCase() || "";
+      let level = salaryLevels.default;
+      if (pos.includes("manager")) level = salaryLevels.manager;
+      else if (pos.includes("senior")) level = salaryLevels.senior;
+      else if (pos.includes("specialist")) level = salaryLevels.specialist;
+      else if (pos.includes("analyst")) level = salaryLevels.analyst;
+      else if (pos.includes("accountant")) level = salaryLevels.accountant;
+
+      const overtimeRate = Math.round((level.basicSalary / 30 / 8) * 100) / 100;
+      const deductionPerLate = Math.round((level.basicSalary / 30 / 8 * 0.5) * 100) / 100;
+      const deductionPerAbsent = Math.round((level.basicSalary / 30) * 100) / 100;
+
+      await db.salaryStructure.create({
+        data: {
+          employeeId: emp.id,
+          basicSalary: level.basicSalary,
+          housingAllowance: level.housingAllowance,
+          transportAllowance: level.transportAllowance,
+          foodAllowance: level.foodAllowance,
+          otherAllowances: 0,
+          overtimeRate,
+          deductionPerLate,
+          deductionPerAbsent,
+          currency: "SAR",
+        },
+      });
+    }
+
+    // ── Create Payroll Period for Current Month ──
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
+    const MONTH_NAMES = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ];
+
+    const startDate = new Date(currentYear, currentMonth - 1, 1);
+    const endDate = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+
+    const payrollPeriod = await db.payrollPeriod.create({
+      data: {
+        name: `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`,
+        month: currentMonth,
+        year: currentYear,
+        startDate,
+        endDate,
+        status: "completed",
+      },
+    });
+
+    // ── Create Pay Slips for the Period ──
+    let totalGross = 0;
+    let totalDeductions = 0;
+    let totalNet = 0;
+
+    for (const emp of employees) {
+      const salary = await db.salaryStructure.findUnique({
+        where: { employeeId: emp.id },
+      });
+      if (!salary) continue;
+
+      // Simulate attendance for the full month
+      const periodStart = new Date(startDate);
+      const periodEnd = new Date(endDate);
+      let workingDays = 0;
+      let presentDays = 0;
+      let absentDays = 0;
+      let lateDays = 0;
+
+      const dayIterator = new Date(periodStart);
+      while (dayIterator <= periodEnd) {
+        const dayOfWeek = dayIterator.getDay();
+        if (dayOfWeek !== 5) { // Exclude Friday
+          workingDays++;
+          // Simulate: 85% present, 15% absent
+          if (Math.random() < 0.85) {
+            presentDays++;
+            // 25% chance of being late
+            if (Math.random() < 0.25) {
+              lateDays++;
+            }
+          } else {
+            absentDays++;
+          }
+        }
+        dayIterator.setDate(dayIterator.getDate() + 1);
+      }
+
+      const overtimeHours = Math.round(Math.random() * 8 * 10) / 10; // 0-8 hours
+      const fixedAllowances = salary.housingAllowance + salary.transportAllowance +
+        salary.foodAllowance + salary.otherAllowances;
+      const totalAllowances = fixedAllowances;
+      const lateDeductions = lateDays * salary.deductionPerLate;
+      const absentDeductions = absentDays * salary.deductionPerAbsent;
+      const overtimePay = overtimeHours * salary.overtimeRate;
+      const totalDeductionsAmount = lateDeductions + absentDeductions;
+      const netSalary = salary.basicSalary + totalAllowances + overtimePay - totalDeductionsAmount;
+
+      await db.paySlip.create({
+        data: {
+          employeeId: emp.id,
+          payrollPeriodId: payrollPeriod.id,
+          basicSalary: salary.basicSalary,
+          totalAllowances,
+          totalDeductions: totalDeductionsAmount,
+          overtimePay,
+          netSalary,
+          workingDays,
+          presentDays,
+          absentDays,
+          lateDays,
+          overtimeHours,
+          status: "pending",
+        },
+      });
+
+      totalGross += salary.basicSalary + totalAllowances + overtimePay;
+      totalDeductions += totalDeductionsAmount;
+      totalNet += netSalary;
+    }
+
+    // Update payroll period totals
+    await db.payrollPeriod.update({
+      where: { id: payrollPeriod.id },
+      data: {
+        totalGross,
+        totalDeductions,
+        totalNet,
+        processedAt: new Date(),
+      },
+    });
+
     return NextResponse.json({
       message: "Database seeded successfully",
       data: {
@@ -247,6 +390,8 @@ export async function POST() {
         shifts: shifts.length,
         schedules: employees.length,
         attendanceDays: 7,
+        salaryStructures: employees.length,
+        payrollPeriod: payrollPeriod.name,
       },
     }, { status: 201 });
   } catch (error: unknown) {

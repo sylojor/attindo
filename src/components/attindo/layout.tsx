@@ -8,6 +8,7 @@ import {
   Wifi,
   Clock,
   CalendarClock,
+  Banknote,
   Moon,
   Sun,
   Database,
@@ -23,8 +24,9 @@ import { EmployeesView } from "./employees";
 import { DevicesView } from "./devices";
 import { AttendanceView } from "./attendance";
 import { ShiftsView } from "./shifts";
+import { PayrollView } from "./payroll";
 
-const APP_VERSION = "v1.13.0";
+const APP_VERSION = "v1.14.0";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +34,7 @@ const navItems = [
   { id: "devices", label: "Devices", icon: Wifi },
   { id: "attendance", label: "Attendance", icon: Clock },
   { id: "shifts", label: "Shifts", icon: CalendarClock },
+  { id: "payroll", label: "Payroll", icon: Banknote },
 ];
 
 export function AttindoLayout() {
@@ -83,6 +86,8 @@ export function AttindoLayout() {
         return <AttendanceView />;
       case "shifts":
         return <ShiftsView />;
+      case "payroll":
+        return <PayrollView />;
       default:
         return <DashboardView />;
     }

@@ -1,5 +1,5 @@
 // Attindo HR/Payroll - Database Schema
-// v1.13.0
+// v1.14.0
 
 generator client {
   provider = "prisma-client-js"
@@ -30,6 +30,10 @@ model Employee {
   attendanceLogs AttendanceLog[]
   schedules    Schedule[]
   deviceAssignments DeviceEmployee[]
+  salaryStructure SalaryStructure?
+  paySlips     PaySlip[]
+  allowances   Allowance[]
+  deductions   Deduction[]
 }
 
 model Device {
@@ -131,4 +135,102 @@ model DeviceEmployee {
 
   @@unique([deviceId, employeeId])
   @@unique([deviceId, fingerprintId])
+}
+
+// ─── Payroll Models ───
+
+model SalaryStructure {
+  id                  String   @id @default(cuid())
+  employeeId          String   @unique
+  employee            Employee @relation(fields: [employeeId], references: [id])
+  basicSalary         Float   @default(0)
+  housingAllowance    Float   @default(0)
+  transportAllowance  Float   @default(0)
+  foodAllowance       Float   @default(0)
+  otherAllowances     Float   @default(0)
+  overtimeRate        Float   @default(0)    // per hour
+  deductionPerLate    Float   @default(0)    // per late occurrence
+  deductionPerAbsent  Float   @default(0)    // per absent day
+  currency            String   @default("SAR")
+  effectiveDate       DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PayrollPeriod {
+  id              String   @id @default(cuid())
+  name            String   // e.g. "January 2025"
+  month           Int      // 1-12
+  year            Int
+  startDate       DateTime
+  endDate         DateTime
+  status          String   @default("draft") // draft, processing, completed, approved
+  totalGross      Float    @default(0)
+  totalDeductions Float    @default(0)
+  totalNet        Float    @default(0)
+  processedAt     DateTime?
+  approvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  paySlips PaySlip[]
+
+  @@unique([month, year])
+}
+
+model PaySlip {
+  id                String   @id @default(cuid())
+  employeeId        String
+  employee          Employee @relation(fields: [employeeId], references: [id])
+  payrollPeriodId   String
+  payrollPeriod     PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  basicSalary       Float    @default(0)
+  totalAllowances   Float    @default(0)
+  totalDeductions   Float    @default(0)
+  overtimePay       Float    @default(0)
+  netSalary         Float    @default(0)
+  workingDays       Int      @default(0)
+  presentDays       Int      @default(0)
+  absentDays        Int      @default(0)
+  lateDays          Int      @default(0)
+  overtimeHours     Float    @default(0)
+  status            String   @default("pending") // pending, paid
+  paidAt            DateTime?
+  createdAt         DateTime @default(now())
+
+  @@unique([employeeId, payrollPeriodId])
+  @@index([employeeId])
+  @@index([payrollPeriodId])
+}
+
+model Allowance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  name        String
+  nameAr      String?
+  amount      Float
+  type        String   @default("fixed") // fixed, percentage
+  isRecurring Boolean  @default(true)
+  effectiveDate DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+}
+
+model Deduction {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  name        String
+  nameAr      String?
+  amount      Float
+  type        String   @default("fixed") // fixed, percentage
+  isRecurring Boolean  @default(true)
+  effectiveDate DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
 }
