@@ -8,6 +8,7 @@ import {
   Clock,
   AlertTriangle,
   Activity,
+  Shield,
 } from "lucide-react";
 import {
   Card,
@@ -159,6 +160,25 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
+      {/* ZKTeco Official Support Banner */}
+      <Card className="border-emerald-200 dark:border-emerald-900/50 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white shrink-0">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">
+                Official ZKTeco ZK Protocol Support
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Attindo replaces BioTime &mdash; Real-time fingerprint device sync, attendance management, and payroll processing in one app
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card) => {

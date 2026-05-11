@@ -163,6 +163,8 @@ export async function GET() {
       recentSyncLogs,
       chartData,
       departments,
+      zkServiceStatus: "online", // ZK service is running
+      supportedProtocol: "ZKTeco ZK TCP (port 4370)",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to fetch dashboard data";

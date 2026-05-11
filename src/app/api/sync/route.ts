@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+const ZK_SERVICE_URL = "http://127.0.0.1:3003";
+const ZK_TIMEOUT = 10000; // 10 seconds timeout for ZK service calls
+
 // POST /api/sync - Trigger sync operations (NON-BLOCKING)
 export async function POST(request: NextRequest) {
   try {
@@ -22,19 +25,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Verify device exists
       const device = await db.device.findUnique({ where: { id: deviceId } });
       if (!device) {
         return NextResponse.json({ error: "Device not found" }, { status: 404 });
       }
 
-      // Create sync log entry
       const syncLog = await db.syncLog.create({
-        data: {
-          deviceId,
-          syncType: "full",
-          status: "pending",
-        },
+        data: { deviceId, syncType: "full", status: "pending" },
       });
 
       // Start sync in background - NON-BLOCKING
@@ -43,38 +40,24 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json(
-        {
-          message: "Device sync started in background",
-          deviceId,
-          syncLogId: syncLog.id,
-          status: "syncing",
-        },
+        { message: "Device sync started in background", deviceId, syncLogId: syncLog.id, status: "syncing" },
         { status: 202 }
       );
     }
 
     if (type === "all") {
-      const devices = await db.device.findMany({
-        where: { isActive: true },
-      });
+      const devices = await db.device.findMany({ where: { isActive: true } });
 
       if (devices.length === 0) {
-        return NextResponse.json(
-          { error: "No active devices to sync" },
-          { status: 400 }
-        );
+        return NextResponse.json({ message: "No active devices to sync", deviceCount: 0 }, { status: 200 });
       }
 
-      // Create sync logs for all devices
+      // First, ensure all devices are registered with the ZK service
+      await registerDevicesWithZKService(devices);
+
       const syncLogs = await Promise.all(
         devices.map((device) =>
-          db.syncLog.create({
-            data: {
-              deviceId: device.id,
-              syncType: "full",
-              status: "pending",
-            },
-          })
+          db.syncLog.create({ data: { deviceId: device.id, syncType: "full", status: "pending" } })
         )
       );
 
@@ -87,11 +70,7 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json(
-        {
-          message: "Sync started for all devices in background",
-          deviceCount: devices.length,
-          syncLogIds: syncLogs.map((sl) => sl.id),
-        },
+        { message: "Sync started for all devices in background", deviceCount: devices.length, syncLogIds: syncLogs.map((sl) => sl.id) },
         { status: 202 }
       );
     }
@@ -103,29 +82,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Register all DB devices with the ZK service
+async function registerDevicesWithZKService(devices: Array<{ id: string; name: string; ip: string; port: number }>) {
+  try {
+    // Get current ZK service device list
+    const res = await fetch(`${ZK_SERVICE_URL}/api/devices`, {
+      signal: AbortSignal.timeout(ZK_TIMEOUT),
+    });
+    if (!res.ok) return;
+
+    const zkDevices: Array<{ id: string }> = await res.json();
+    const zkDeviceIds = new Set(zkDevices.map((d) => d.id));
+
+    // Register any devices that aren't in the ZK service yet
+    for (const device of devices) {
+      if (!zkDeviceIds.has(device.id)) {
+        try {
+          await fetch(`${ZK_SERVICE_URL}/api/devices`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: device.id, name: device.name, ip: device.ip, port: device.port }),
+            signal: AbortSignal.timeout(ZK_TIMEOUT),
+          });
+        } catch {
+          // Ignore registration failures
+        }
+      }
+    }
+  } catch {
+    // ZK service may be down
+  }
+}
+
 // Perform device sync in background
 async function performDeviceSync(deviceId: string, syncLogId: string) {
   try {
-    // Update sync log to running
-    await db.syncLog.update({
-      where: { id: syncLogId },
-      data: { status: "running" },
-    });
-
-    // Update device status
-    await db.device.update({
-      where: { id: deviceId },
-      data: { status: "syncing" },
-    });
+    await db.syncLog.update({ where: { id: syncLogId }, data: { status: "running" } });
+    await db.device.update({ where: { id: deviceId }, data: { status: "syncing" } });
 
     // Get employees to upload
     const employeesToUpload = await db.deviceEmployee.findMany({
       where: { deviceId, isUploaded: false },
-      include: {
-        employee: {
-          select: { id: true, employeeId: true, name: true, fingerprintId: true },
-        },
-      },
+      include: { employee: { select: { id: true, employeeId: true, name: true, fingerprintId: true } } },
     });
 
     const employeeData = employeesToUpload.map((de) => ({
@@ -134,20 +132,47 @@ async function performDeviceSync(deviceId: string, syncLogId: string) {
       fingerprintId: de.fingerprintId,
     }));
 
-    // Call ZK sync service (server-to-server, use 127.0.0.1 directly)
-    const response = await fetch(`http://127.0.0.1:3003/api/sync/${deviceId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ employees: employeeData }),
-    });
+    // Get device info for ZK service
+    const device = await db.device.findUnique({ where: { id: deviceId } });
+    if (!device) throw new Error("Device not found");
 
-    if (!response.ok && response.status !== 202) {
-      throw new Error(`ZK sync service returned ${response.status}`);
+    // Ensure device is registered with ZK service
+    await registerDevicesWithZKService([device]);
+
+    // Call ZK sync service with timeout
+    let zkSyncStarted = false;
+    try {
+      const response = await fetch(`${ZK_SERVICE_URL}/api/sync/${deviceId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employees: employeeData, clearAfterRead: true }),
+        signal: AbortSignal.timeout(ZK_TIMEOUT),
+      });
+
+      if (response.status === 404) {
+        throw new Error("Device not found in ZK service - may need re-registration");
+      }
+      if (!response.ok && response.status !== 202) {
+        throw new Error(`ZK sync service returned ${response.status}`);
+      }
+      zkSyncStarted = true;
+    } catch (zkErr: any) {
+      // If ZK service is unreachable, fail fast
+      const errMsg = zkErr.name === "TimeoutError"
+        ? "Connection to device timed out (device may be offline)"
+        : `ZK service: ${zkErr.message}`;
+      throw new Error(errMsg);
     }
 
-    // Simulate waiting for sync completion (in production, this would be handled via socket.io events)
-    // For now, we'll update the sync log after a brief delay
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // Wait for sync to complete - poll with timeout (max 30 seconds)
+    if (zkSyncStarted) {
+      const pollStart = Date.now();
+      while (Date.now() - pollStart < 30000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const dev = await db.device.findUnique({ where: { id: deviceId } });
+        if (dev && dev.status !== "syncing") break;
+      }
+    }
 
     // Mark employees as uploaded
     await db.deviceEmployee.updateMany({
@@ -155,58 +180,121 @@ async function performDeviceSync(deviceId: string, syncLogId: string) {
       data: { isUploaded: true, lastSyncAt: new Date() },
     });
 
-    // Update sync log to completed
-    await db.syncLog.update({
-      where: { id: syncLogId },
-      data: {
-        status: "completed",
-        recordsFetched: employeeData.length > 0 ? 50 : 0, // Simulated
-        recordsUploaded: employeeData.length,
-        completedAt: new Date(),
-      },
-    });
+    // Try to fetch and save attendance data
+    try {
+      const attendanceRes = await fetch(`${ZK_SERVICE_URL}/api/attendance/${deviceId}`, {
+        signal: AbortSignal.timeout(ZK_TIMEOUT),
+      });
+      if (attendanceRes.ok) {
+        const attendanceRecords = await attendanceRes.json();
+        if (Array.isArray(attendanceRecords) && attendanceRecords.length > 0) {
+          await saveAttendanceRecords(deviceId, attendanceRecords);
+        }
+      }
+    } catch {
+      // Attendance fetch failed, but sync itself may have worked
+    }
 
-    // Update device status
+    // Update device status to online
     await db.device.update({
       where: { id: deviceId },
-      data: {
-        status: "online",
-        lastSyncAt: new Date(),
-      },
+      data: { status: "online", lastSyncAt: new Date() },
+    }).catch(() => {});
+
+    // Count saved records
+    const savedCount = await db.attendanceLog.count({
+      where: { deviceId, syncedAt: { gte: new Date(Date.now() - 5 * 60 * 1000) } },
     });
 
-    console.log(`[Sync] Device ${deviceId} sync completed`);
+    await db.syncLog.update({
+      where: { id: syncLogId },
+      data: { status: "completed", recordsFetched: savedCount, recordsUploaded: employeeData.length, completedAt: new Date() },
+    });
+
+    console.log(`[Sync] Device ${deviceId} sync completed: ${savedCount} attendance records`);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-    // Update sync log to failed
-    await db.syncLog
-      .update({
-        where: { id: syncLogId },
-        data: {
-          status: "failed",
-          error: errorMessage,
-          completedAt: new Date(),
-        },
-      })
-      .catch(() => {});
+    await db.syncLog.update({
+      where: { id: syncLogId },
+      data: { status: "failed", error: errorMessage.substring(0, 500), completedAt: new Date() },
+    }).catch(() => {});
 
-    // Update device status to error
-    await db.device
-      .update({
-        where: { id: deviceId },
-        data: { status: "error" },
-      })
-      .catch(() => {});
+    await db.device.update({
+      where: { id: deviceId },
+      data: { status: "error" },
+    }).catch(() => {});
 
     console.error(`[Sync] Device ${deviceId} sync failed:`, errorMessage);
   }
 }
 
+// Save attendance records from ZK device to database
+async function saveAttendanceRecords(deviceId: string, records: Array<{
+  userId: number; timestamp: string; verifyMode: number; ioMode: number; workCode: number;
+}>) {
+  let saved = 0;
+  let skipped = 0;
+
+  const verifyModeMap: Record<number, string> = {
+    0: "fingerprint", 1: "fingerprint", 2: "card", 3: "password",
+    4: "face", 5: "palm", 6: "iris", 7: "vein",
+  };
+  const ioModeMap: Record<number, string> = {
+    0: "check-in", 1: "check-out", 4: "check-in", 5: "check-out",
+  };
+
+  for (const record of records) {
+    try {
+      const employee = await db.employee.findFirst({
+        where: { fingerprintId: record.userId, isActive: true },
+      });
+      const timestamp = new Date(record.timestamp);
+
+      const existing = await db.attendanceLog.findFirst({
+        where: {
+          deviceId,
+          timestamp: { gte: new Date(timestamp.getTime() - 1000), lte: new Date(timestamp.getTime() + 1000) },
+          ...(employee ? { employeeId: employee.id } : {}),
+        },
+      });
+
+      if (existing) { skipped++; continue; }
+
+      await db.attendanceLog.create({
+        data: {
+          employeeId: employee?.id || null, deviceId, timestamp,
+          verifyMode: verifyModeMap[record.verifyMode] || "fingerprint",
+          status: ioModeMap[record.ioMode] || "check-in",
+          ioMode: record.ioMode, workCode: record.workCode, syncedAt: new Date(),
+        },
+      });
+      saved++;
+    } catch (err: any) {
+      console.warn(`[Sync] Failed to save attendance (userId:${record.userId}):`, err.message);
+    }
+  }
+  console.log(`[Sync] Attendance save: ${saved} saved, ${skipped} skipped`);
+}
+
 // Perform sync for all devices in background
 async function performAllDevicesSync(deviceIds: string[], syncLogIds: string[]) {
-  // Sync devices sequentially to avoid overwhelming the network
   for (let i = 0; i < deviceIds.length; i++) {
     await performDeviceSync(deviceIds[i], syncLogIds[i]);
+  }
+}
+
+// GET /api/sync - Get sync status
+export async function GET() {
+  try {
+    const recentSyncs = await db.syncLog.findMany({
+      take: 20, orderBy: { startedAt: "desc" },
+      include: { device: { select: { name: true, ip: true, status: true } } },
+    });
+    const activeSyncs = recentSyncs.filter((s) => s.status === "running" || s.status === "pending");
+    return NextResponse.json({ activeSyncs: activeSyncs.length, recentSyncs });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to fetch sync status";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

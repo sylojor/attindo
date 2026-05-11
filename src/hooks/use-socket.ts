@@ -41,22 +41,31 @@ export function useSocket(): UseSocketReturn {
       setIsConnected(false);
     });
 
-    // Listen for sync progress events
+    // Listen for sync progress events (from real ZK service)
     socket.on("sync:progress", (data: {
       deviceId: string;
-      deviceName: string;
+      phase: string;
       progress: number;
-      status: "pending" | "running" | "completed" | "failed";
-      recordsFetched: number;
-      recordsUploaded: number;
+      message: string;
+      recordsFetched?: number;
+      recordsUploaded?: number;
     }) => {
+      const statusMap: Record<string, "pending" | "running" | "completed" | "failed"> = {
+        connecting: "running",
+        reading: "running",
+        uploading: "running",
+        disconnecting: "running",
+        completed: "completed",
+        error: "failed",
+      };
+
       updateSyncProgress(data.deviceId, {
         deviceId: data.deviceId,
-        deviceName: data.deviceName,
+        deviceName: "", // Will be filled from device list
         progress: data.progress,
-        status: data.status,
-        recordsFetched: data.recordsFetched,
-        recordsUploaded: data.recordsUploaded,
+        status: statusMap[data.phase] || "running",
+        recordsFetched: data.recordsFetched || 0,
+        recordsUploaded: data.recordsUploaded || 0,
       });
       setLastEvent("sync:progress");
     });
@@ -73,6 +82,20 @@ export function useSocket(): UseSocketReturn {
         lastSyncAt: data.lastSyncAt,
       });
       setLastEvent("device:status");
+    });
+
+    // Listen for device info events (serial, firmware, etc.)
+    socket.on("device:info", (data: {
+      deviceId: string;
+      info: {
+        serialNumber: string | null;
+        firmware: string | null;
+        deviceName: string | null;
+        userCount: number;
+        logCount: number;
+      };
+    }) => {
+      setLastEvent("device:info");
     });
 
     socketRef.current = socket;

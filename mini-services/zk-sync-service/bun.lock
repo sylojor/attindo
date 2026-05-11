@@ -6,6 +6,7 @@
       "name": "zk-sync-service",
       "dependencies": {
         "cors": "^2.8.5",
+        "node-zklib": "^1.3.0",
         "socket.io": "^4.8.1",
       },
     },
@@ -40,6 +41,8 @@
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 
     "negotiator": ["negotiator@0.6.3", "", {}, "sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg=="],
+
+    "node-zklib": ["node-zklib@1.3.0", "", { "dependencies": { "node-zklib": "^1.0.0" } }, "sha512-eqsg2oMKx/Jsju3PQzCennW94NUNw3YsUbXidzOzNWWOwnW/dXePIXIjhmMBpZ3QSLiltEn7Z0Gi0htZQBWBAw=="],
 
     "object-assign": ["object-assign@4.1.1", "", {}, "sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg=="],
 

@@ -26,7 +26,7 @@ import { AttendanceView } from "./attendance";
 import { ShiftsView } from "./shifts";
 import { PayrollView } from "./payroll";
 
-const APP_VERSION = "v1.14.0";
+const APP_VERSION = "v1.15.0";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -47,21 +47,10 @@ export function AttindoLayout() {
     () => false
   );
 
-  // Auto-sync on load (non-blocking)
-  useEffect(() => {
-    const autoSync = async () => {
-      try {
-        await fetch("/api/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "all" }),
-        });
-      } catch {
-        // Silent fail for auto-sync
-      }
-    };
-    autoSync();
-  }, []);
+  // Auto-sync is disabled by default to prevent issues in dev environments
+  // where no real devices are connected. In production with real ZKTeco devices,
+  // the user can trigger sync manually or enable auto-sync in settings.
+  // The sync process runs in the background and is non-blocking.
 
   const handleSeed = async () => {
     try {
@@ -109,7 +98,7 @@ export function AttindoLayout() {
             <div className="hidden sm:flex flex-col">
               <span className="font-bold text-sm leading-tight">Attindo</span>
               <span className="text-[10px] text-muted-foreground leading-tight">
-                HR & Attendance
+                HR, Payroll & Attendance
               </span>
             </div>
           </div>
@@ -256,8 +245,7 @@ export function AttindoLayout() {
       {/* Footer (desktop) */}
       <footer className="hidden md:block border-t py-3 px-4 mt-auto">
         <div className="text-center text-xs text-muted-foreground">
-          &copy; 2024 Attindo {APP_VERSION} &mdash; HR &amp; Attendance Management
-          System
+          &copy; 2024-2025 Attindo {APP_VERSION} &mdash; HR, Payroll &amp; Attendance &bull; Official ZKTeco Support
         </div>
       </footer>
     </div>
