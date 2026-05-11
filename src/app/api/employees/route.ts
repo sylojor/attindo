@@ -22,13 +22,21 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      where.OR = [
+      const orConditions: Record<string, unknown>[] = [
         { name: { contains: search } },
         { nameAr: { contains: search } },
         { employeeId: { contains: search } },
         { email: { contains: search } },
         { phone: { contains: search } },
       ];
+
+      // Also search by fingerprintId if search is numeric
+      const numericSearch = parseInt(search, 10);
+      if (!isNaN(numericSearch) && String(numericSearch) === search.trim()) {
+        orConditions.push({ fingerprintId: numericSearch });
+      }
+
+      where.OR = orConditions;
     }
 
     if (departmentId) {

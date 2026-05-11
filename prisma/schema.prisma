@@ -295,3 +295,15 @@ model Loan {
   @@index([employeeId])
   @@index([status])
 }
+
+// ─── Holiday (عطلة / يوم عطلة محدد) ───
+
+model Holiday {
+  id          String   @id @default(cuid())
+  date        DateTime @unique // The specific date of the holiday
+  name        String   // Holiday name (e.g., "Eid Al-Fitr")
+  nameAr      String?  // Arabic name (e.g., "عيد الفطر")
+  isRecurring Boolean  @default(false) // Recurs every year on same date
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

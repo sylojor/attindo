@@ -20,6 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   Moon,
+  CalendarX,
+  Shuffle,
 } from "lucide-react";
 import {
   Card,
@@ -156,6 +158,94 @@ interface ReportData {
   totalEmployees: number;
 }
 
+// ─── Absent on Date Types ───
+interface AbsentOnDateEntry {
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    nameAr: string | null;
+    department: string | null;
+    fingerprintId: number | null;
+    position: string | null;
+  };
+  absenceType: "scheduled_off" | "holiday" | "actual_absence";
+  holidayInfo: { id: string; name: string; nameAr: string } | null;
+  schedule: {
+    isOffDay: boolean;
+    shiftName: string | null;
+    startTime: string | null;
+    endTime: string | null;
+  };
+  attendanceLogs: Array<{
+    id: string;
+    timestamp: string;
+    verifyMode: string;
+    ioMode: number;
+    device: string;
+  }>;
+}
+
+interface AbsentOnDateData {
+  date: string;
+  entries: AbsentOnDateEntry[];
+  totalAbsent: number;
+}
+
+// ─── Working by Shift Types ───
+interface WorkingByShiftEntry {
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    nameAr: string | null;
+    department: string | null;
+    fingerprintId: number | null;
+    position: string | null;
+  };
+  shift: {
+    id: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+  };
+  isOffDay: boolean;
+  checkIn: string | null;
+  checkOut: string | null;
+  status: "present" | "late" | "absent" | "off";
+  lateMinutes: number;
+  overtimeHours: number;
+  workedHours: number;
+  attendanceLogs: Array<{
+    id: string;
+    timestamp: string;
+    verifyMode: string;
+    ioMode: number;
+    device: string;
+  }>;
+}
+
+interface WorkingByShiftData {
+  date: string;
+  shiftId: string;
+  entries: WorkingByShiftEntry[];
+  summary: {
+    totalEmployees: number;
+    presentCount: number;
+    absentCount: number;
+    offDayCount: number;
+  };
+}
+
+// ─── Shift Option ───
+interface ShiftOption {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  startTime: string;
+  endTime: string;
+}
+
 // ─── Status Badge ───
 function dayStatusBadge(status: string, t: (k: string) => string) {
   switch (status) {
@@ -169,6 +259,20 @@ function dayStatusBadge(status: string, t: (k: string) => string) {
       return <Badge className="text-xs bg-muted text-muted-foreground">{t("reports.dayOff")}</Badge>;
     default:
       return <Badge variant="outline" className="text-xs">{status}</Badge>;
+  }
+}
+
+// ─── Absence Type Badge ───
+function absenceTypeBadge(type: "scheduled_off" | "holiday" | "actual_absence", t: (k: string) => string) {
+  switch (type) {
+    case "holiday":
+      return <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{t("reports.holiday")}</Badge>;
+    case "scheduled_off":
+      return <Badge className="text-xs bg-muted text-muted-foreground">{t("reports.scheduledOff")}</Badge>;
+    case "actual_absence":
+      return <Badge className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{t("reports.actualAbsence")}</Badge>;
+    default:
+      return <Badge variant="outline" className="text-xs">{type}</Badge>;
   }
 }
 
@@ -310,6 +414,176 @@ function EmployeeDetailCard({ report, currency, t, lang }: {
   );
 }
 
+// ─── Absent on Date Results ───
+function AbsentOnDateResults({ data, t, lang }: {
+  data: AbsentOnDateData;
+  t: (k: string) => string;
+  lang: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <CalendarX className="h-4 w-4 text-red-600" />
+          {t("reports.absentOnDate")} — {formatDate(data.date)}
+        </CardTitle>
+        <CardDescription className="text-xs">
+          {data.totalAbsent} {lang === "ar" ? "موظف غائب/معطل" : "employee(s) absent/off"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="max-h-96 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">{t("reports.employee")}</TableHead>
+                <TableHead className="text-xs">{t("reports.empId")}</TableHead>
+                <TableHead className="text-xs">{t("reports.department")}</TableHead>
+                <TableHead className="text-xs">{t("reports.absenceType")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.entries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-sm">
+                    {t("reports.noData")}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.entries.map((entry) => (
+                  <TableRow key={entry.employee.id}>
+                    <TableCell className="text-sm py-2">
+                      <div>
+                        <span className="font-medium">{entry.employee.name}</span>
+                        {entry.employee.nameAr && (
+                          <span className="text-muted-foreground text-xs ml-1">({entry.employee.nameAr})</span>
+                        )}
+                      </div>
+                      {entry.holidayInfo && (
+                        <div className="text-[10px] text-amber-600 mt-0.5">
+                          {lang === "ar" && entry.holidayInfo.nameAr ? entry.holidayInfo.nameAr : entry.holidayInfo.name}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm py-2">{entry.employee.employeeId}</TableCell>
+                    <TableCell className="text-sm py-2">{entry.employee.department || t("reports.unassigned")}</TableCell>
+                    <TableCell className="py-2">{absenceTypeBadge(entry.absenceType, t)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Working by Shift Results ───
+function WorkingByShiftResults({ data, t, lang }: {
+  data: WorkingByShiftData;
+  t: (k: string) => string;
+  lang: string;
+}) {
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-3 text-center">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground uppercase">{t("reports.employees")}</span>
+          </div>
+          <p className="text-xl font-bold">{data.summary.totalEmployees}</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="text-[10px] text-muted-foreground uppercase">{t("reports.totalPresent")}</span>
+          </div>
+          <p className="text-xl font-bold text-emerald-600">{data.summary.presentCount}</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <XCircle className="h-3.5 w-3.5 text-red-600" />
+            <span className="text-[10px] text-muted-foreground uppercase">{t("reports.totalAbsent")}</span>
+          </div>
+          <p className="text-xl font-bold text-red-600">{data.summary.absentCount}</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <Moon className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground uppercase">{t("reports.totalOff")}</span>
+          </div>
+          <p className="text-xl font-bold text-muted-foreground">{data.summary.offDayCount}</p>
+        </Card>
+      </div>
+
+      {/* Detail Table */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Shuffle className="h-4 w-4 text-emerald-600" />
+            {t("reports.workingByShift")} — {formatDate(data.date)}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            {t("reports.shiftInfo")}: {data.entries.length > 0 ? data.entries[0].shift.name : ""} ({data.entries.length > 0 ? `${data.entries[0].shift.startTime} - ${data.entries[0].shift.endTime}` : ""})
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">{t("reports.employee")}</TableHead>
+                  <TableHead className="text-xs">{t("reports.checkInTime")}</TableHead>
+                  <TableHead className="text-xs">{t("reports.checkOutTime")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("reports.workedHrs")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("reports.lateMin")}</TableHead>
+                  <TableHead className="text-xs text-right">{t("reports.OTHrs")}</TableHead>
+                  <TableHead className="text-xs">{t("reports.status")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.entries.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">
+                      {t("reports.noData")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  data.entries.map((entry) => (
+                    <TableRow key={entry.employee.id} className={entry.isOffDay ? "opacity-50" : ""}>
+                      <TableCell className="text-sm py-2">
+                        <div>
+                          <span className="font-medium">{entry.employee.name}</span>
+                          {entry.employee.nameAr && (
+                            <span className="text-muted-foreground text-xs ml-1">({entry.employee.nameAr})</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">{entry.employee.employeeId} • {entry.employee.department || t("reports.unassigned")}</div>
+                      </TableCell>
+                      <TableCell className="text-xs py-2">{formatTime(entry.checkIn)}</TableCell>
+                      <TableCell className="text-xs py-2">{formatTime(entry.checkOut)}</TableCell>
+                      <TableCell className="text-xs py-2 text-right">{entry.workedHours > 0 ? entry.workedHours.toFixed(1) : "—"}</TableCell>
+                      <TableCell className="text-xs py-2 text-right">{entry.lateMinutes > 0 ? `${entry.lateMinutes}` : "—"}</TableCell>
+                      <TableCell className="text-xs py-2 text-right">{entry.overtimeHours > 0 ? entry.overtimeHours.toFixed(1) : "—"}</TableCell>
+                      <TableCell className="py-2">{dayStatusBadge(entry.status, t)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Filter Type ───
+type FilterType = "department" | "employee" | "absent-on-date" | "working-by-shift";
+
 // ─── Main Component ───
 export function ReportsView() {
   const { t, lang } = useTranslation();
@@ -322,12 +596,17 @@ export function ReportsView() {
 
   const formatDateInput = (d: Date) => d.toISOString().split("T")[0];
 
-  const [filterType, setFilterType] = useState<"department" | "employee">("department");
+  const [filterType, setFilterType] = useState<FilterType>("department");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("all");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState(formatDateInput(thirtyDaysAgo));
   const [dateTo, setDateTo] = useState(formatDateInput(today));
   const [reportGenerated, setReportGenerated] = useState(false);
+
+  // New filter states
+  const [absentDate, setAbsentDate] = useState(formatDateInput(today));
+  const [selectedShiftId, setSelectedShiftId] = useState<string>("");
+  const [shiftDate, setShiftDate] = useState(formatDateInput(today));
 
   // Fetch departments
   const { data: departments = [] } = useQuery<DepartmentOption[]>({
@@ -350,7 +629,18 @@ export function ReportsView() {
     },
   });
 
-  // Fetch report data
+  // Fetch shifts (for working-by-shift)
+  const { data: shifts = [] } = useQuery<ShiftOption[]>({
+    queryKey: ["report-shifts"],
+    queryFn: async () => {
+      const res = await fetch("/api/shifts");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: filterType === "working-by-shift",
+  });
+
+  // Fetch report data (department / employee)
   const { data: reportData, isLoading: reportLoading, refetch } = useQuery<ReportData>({
     queryKey: ["report", filterType, selectedDepartmentId, selectedEmployeeId, dateFrom, dateTo],
     queryFn: async () => {
@@ -368,78 +658,159 @@ export function ReportsView() {
       }
       return res.json();
     },
-    enabled: reportGenerated,
+    enabled: reportGenerated && (filterType === "department" || filterType === "employee"),
   });
+
+  // Fetch absent-on-date data
+  const { data: absentData, isLoading: absentLoading, refetch: refetchAbsent } = useQuery<AbsentOnDateData>({
+    queryKey: ["report-absent-on-date", absentDate],
+    queryFn: async () => {
+      const res = await fetch(`/api/reports?reportType=absent-on-date&date=${absentDate}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate report");
+      }
+      return res.json();
+    },
+    enabled: reportGenerated && filterType === "absent-on-date",
+  });
+
+  // Fetch working-by-shift data
+  const { data: shiftData, isLoading: shiftLoading, refetch: refetchShift } = useQuery<WorkingByShiftData>({
+    queryKey: ["report-working-by-shift", selectedShiftId, shiftDate],
+    queryFn: async () => {
+      const res = await fetch(`/api/reports?reportType=working-by-shift&shiftId=${selectedShiftId}&date=${shiftDate}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to generate report");
+      }
+      return res.json();
+    },
+    enabled: reportGenerated && filterType === "working-by-shift" && !!selectedShiftId,
+  });
+
+  // Active report data & loading state
+  const isActiveReportLoading = filterType === "absent-on-date" ? absentLoading : filterType === "working-by-shift" ? shiftLoading : reportLoading;
+
+  const activeReportData = filterType === "absent-on-date" ? absentData : filterType === "working-by-shift" ? shiftData : reportData;
 
   const handleGenerate = () => {
     setReportGenerated(true);
-    refetch();
+    if (filterType === "absent-on-date") {
+      refetchAbsent();
+    } else if (filterType === "working-by-shift") {
+      refetchShift();
+    } else {
+      refetch();
+    }
   };
+
+  // Determine if generate button should be disabled
+  const isGenerateDisabled = useMemo(() => {
+    if (isActiveReportLoading) return true;
+    if (filterType === "department" || filterType === "employee") {
+      return !dateFrom || !dateTo;
+    }
+    if (filterType === "absent-on-date") {
+      return !absentDate;
+    }
+    if (filterType === "working-by-shift") {
+      return !selectedShiftId || !shiftDate;
+    }
+    return false;
+  }, [filterType, isActiveReportLoading, dateFrom, dateTo, absentDate, selectedShiftId, shiftDate]);
 
   // ─── Export to Excel ───
   const exportToExcel = useCallback(async () => {
-    if (!reportData) return;
+    if (!activeReportData) return;
     const XLSX = await import("xlsx");
 
     const rows: Array<Record<string, string | number>> = [];
-    for (const emp of reportData.employees) {
-      for (const day of emp.dailyDetails) {
+
+    if (filterType === "absent-on-date" && absentData) {
+      for (const entry of absentData.entries) {
         rows.push({
-          [t("reports.employee")]: emp.employee.name,
-          [t("reports.empId")]: emp.employee.employeeId,
-          [t("reports.department")]: emp.employee.department?.name || "",
-          [t("reports.date")]: day.date,
-          [t("reports.day")]: lang === "ar" ? DAY_NAMES_AR[day.dayOfWeek] : DAY_NAMES_EN[day.dayOfWeek],
-          [t("reports.checkIn")]: day.firstCheckIn ? new Date(day.firstCheckIn).toLocaleTimeString() : "",
-          [t("reports.checkOut")]: day.lastCheckOut ? new Date(day.lastCheckOut).toLocaleTimeString() : "",
-          [t("reports.workedHrs")]: day.workedHours,
-          [t("reports.lateMin")]: day.lateMinutes,
-          [t("reports.OTHrs")]: day.overtimeHours,
-          [t("reports.status")]: day.status,
+          [t("reports.employee")]: entry.employee.name,
+          [t("reports.empId")]: entry.employee.employeeId,
+          [t("reports.department")]: entry.employee.department || "",
+          [t("reports.absenceType")]: entry.absenceType,
         });
       }
-      // Add summary row
-      rows.push({
-        [t("reports.employee")]: "",
-        [t("reports.empId")]: "",
-        [t("reports.department")]: "",
-        [t("reports.date")]: "SUMMARY",
-        [t("reports.day")]: "",
-        [t("reports.checkIn")]: "",
-        [t("reports.checkOut")]: "",
-        [t("reports.workedHrs")]: emp.summary.totalWorkedHours,
-        [t("reports.lateMin")]: emp.summary.totalLateMinutes,
-        [t("reports.OTHrs")]: emp.summary.totalOvertimeHours,
-        [t("reports.status")]: `Present:${emp.summary.presentDays} Late:${emp.summary.lateDays} Absent:${emp.summary.absentDays}`,
-      });
-      // Add salary row
-      if (emp.salaryInfo) {
+    } else if (filterType === "working-by-shift" && shiftData) {
+      for (const entry of shiftData.entries) {
+        rows.push({
+          [t("reports.employee")]: entry.employee.name,
+          [t("reports.empId")]: entry.employee.employeeId,
+          [t("reports.department")]: entry.employee.department || "",
+          [t("reports.checkInTime")]: entry.checkIn ? new Date(entry.checkIn).toLocaleTimeString() : "",
+          [t("reports.checkOutTime")]: entry.checkOut ? new Date(entry.checkOut).toLocaleTimeString() : "",
+          [t("reports.workedHrs")]: entry.workedHours,
+          [t("reports.lateMin")]: entry.lateMinutes,
+          [t("reports.OTHrs")]: entry.overtimeHours,
+          [t("reports.status")]: entry.status,
+        });
+      }
+    } else if (reportData) {
+      for (const emp of reportData.employees) {
+        for (const day of emp.dailyDetails) {
+          rows.push({
+            [t("reports.employee")]: emp.employee.name,
+            [t("reports.empId")]: emp.employee.employeeId,
+            [t("reports.department")]: emp.employee.department?.name || "",
+            [t("reports.date")]: day.date,
+            [t("reports.day")]: lang === "ar" ? DAY_NAMES_AR[day.dayOfWeek] : DAY_NAMES_EN[day.dayOfWeek],
+            [t("reports.checkIn")]: day.firstCheckIn ? new Date(day.firstCheckIn).toLocaleTimeString() : "",
+            [t("reports.checkOut")]: day.lastCheckOut ? new Date(day.lastCheckOut).toLocaleTimeString() : "",
+            [t("reports.workedHrs")]: day.workedHours,
+            [t("reports.lateMin")]: day.lateMinutes,
+            [t("reports.OTHrs")]: day.overtimeHours,
+            [t("reports.status")]: day.status,
+          });
+        }
+        // Add summary row
         rows.push({
           [t("reports.employee")]: "",
           [t("reports.empId")]: "",
           [t("reports.department")]: "",
-          [t("reports.date")]: "SALARY",
+          [t("reports.date")]: "SUMMARY",
           [t("reports.day")]: "",
           [t("reports.checkIn")]: "",
           [t("reports.checkOut")]: "",
-          [t("reports.workedHrs")]: 0,
-          [t("reports.lateMin")]: 0,
-          [t("reports.OTHrs")]: 0,
-          [t("reports.status")]: `Net: ${formatCurrency(emp.salaryInfo.netSalary, currency)}`,
+          [t("reports.workedHrs")]: emp.summary.totalWorkedHours,
+          [t("reports.lateMin")]: emp.summary.totalLateMinutes,
+          [t("reports.OTHrs")]: emp.summary.totalOvertimeHours,
+          [t("reports.status")]: `Present:${emp.summary.presentDays} Late:${emp.summary.lateDays} Absent:${emp.summary.absentDays}`,
         });
+        // Add salary row
+        if (emp.salaryInfo) {
+          rows.push({
+            [t("reports.employee")]: "",
+            [t("reports.empId")]: "",
+            [t("reports.department")]: "",
+            [t("reports.date")]: "SALARY",
+            [t("reports.day")]: "",
+            [t("reports.checkIn")]: "",
+            [t("reports.checkOut")]: "",
+            [t("reports.workedHrs")]: 0,
+            [t("reports.lateMin")]: 0,
+            [t("reports.OTHrs")]: 0,
+            [t("reports.status")]: `Net: ${formatCurrency(emp.salaryInfo.netSalary, currency)}`,
+          });
+        }
+        rows.push({} as Record<string, string>);
       }
-      rows.push({} as Record<string, string>);
     }
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Report");
-    XLSX.writeFile(wb, `Attindo_Report_${dateFrom}_to_${dateTo}.xlsx`);
-  }, [reportData, currency, dateFrom, dateTo, t, lang]);
+    const fileSuffix = filterType === "absent-on-date" ? absentDate : filterType === "working-by-shift" ? `${shiftDate}_shift` : `${dateFrom}_to_${dateTo}`;
+    XLSX.writeFile(wb, `Attindo_Report_${fileSuffix}.xlsx`);
+  }, [activeReportData, reportData, absentData, shiftData, currency, dateFrom, dateTo, absentDate, shiftDate, filterType, t, lang]);
 
   // ─── Export to PDF ───
   const exportToPDF = useCallback(async () => {
-    if (!reportData) return;
+    if (!activeReportData) return;
     const { default: jsPDF } = await import("jspdf");
     const autoTable = (await import("jspdf-autotable")).default;
 
@@ -448,70 +819,109 @@ export function ReportsView() {
 
     // Title
     doc.setFontSize(16);
-    doc.text("Attindo - Attendance & Salary Report", pageWidth / 2, 15, { align: "center" });
+    doc.text("Attindo - Attendance Report", pageWidth / 2, 15, { align: "center" });
     doc.setFontSize(10);
-    doc.text(`Period: ${dateFrom} to ${dateTo}`, pageWidth / 2, 22, { align: "center" });
 
-    let yOffset = 30;
+    if (filterType === "absent-on-date" && absentData) {
+      doc.text(`Absent on Date: ${absentDate}`, pageWidth / 2, 22, { align: "center" });
+      const tableData = absentData.entries.map((e) => [
+        e.employee.name,
+        e.employee.employeeId,
+        e.employee.department || "—",
+        e.absenceType,
+        e.holidayInfo ? (lang === "ar" && e.holidayInfo.nameAr ? e.holidayInfo.nameAr : e.holidayInfo.name) : "—",
+      ]);
+      autoTable(doc, {
+        startY: 30,
+        head: [["Employee", "ID", "Department", "Absence Type", "Holiday"]],
+        body: tableData,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [239, 68, 68] },
+      });
+    } else if (filterType === "working-by-shift" && shiftData) {
+      doc.text(`Working by Shift: ${shiftDate}`, pageWidth / 2, 22, { align: "center" });
+      doc.text(`Present: ${shiftData.summary.presentCount} | Absent: ${shiftData.summary.absentCount} | Off: ${shiftData.summary.offDayCount}`, pageWidth / 2, 28, { align: "center" });
+      const tableData = shiftData.entries.map((e) => [
+        e.employee.name,
+        e.employee.employeeId,
+        e.checkIn ? new Date(e.checkIn).toLocaleTimeString() : "—",
+        e.checkOut ? new Date(e.checkOut).toLocaleTimeString() : "—",
+        e.workedHours.toFixed(1),
+        e.lateMinutes > 0 ? `${e.lateMinutes}` : "—",
+        e.overtimeHours > 0 ? e.overtimeHours.toFixed(1) : "—",
+        e.status,
+      ]);
+      autoTable(doc, {
+        startY: 34,
+        head: [["Employee", "ID", "Check In", "Check Out", "Hours", "Late (m)", "OT (h)", "Status"]],
+        body: tableData,
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [16, 185, 129] },
+      });
+    } else if (reportData) {
+      doc.text(`Period: ${dateFrom} to ${dateTo}`, pageWidth / 2, 22, { align: "center" });
+      let yOffset = 30;
 
-    for (const emp of reportData.employees) {
-      // Employee header
-      doc.setFontSize(12);
-      doc.text(`${emp.employee.name} (${emp.employee.employeeId}) - ${emp.employee.department?.name || "N/A"}`, 14, yOffset);
-      yOffset += 5;
+      for (const emp of reportData.employees) {
+        // Employee header
+        doc.setFontSize(12);
+        doc.text(`${emp.employee.name} (${emp.employee.employeeId}) - ${emp.employee.department?.name || "N/A"}`, 14, yOffset);
+        yOffset += 5;
 
-      // Summary
-      doc.setFontSize(9);
-      doc.text(
-        `Working: ${emp.summary.workingDays} | Present: ${emp.summary.presentDays} | Late: ${emp.summary.lateDays} | Absent: ${emp.summary.absentDays} | Overtime: ${emp.summary.totalOvertimeHours.toFixed(1)}h`,
-        14,
-        yOffset
-      );
-      yOffset += 5;
-
-      if (emp.salaryInfo) {
+        // Summary
+        doc.setFontSize(9);
         doc.text(
-          `Net Salary: ${formatCurrency(emp.salaryInfo.netSalary, currency)}`,
+          `Working: ${emp.summary.workingDays} | Present: ${emp.summary.presentDays} | Late: ${emp.summary.lateDays} | Absent: ${emp.summary.absentDays} | Overtime: ${emp.summary.totalOvertimeHours.toFixed(1)}h`,
           14,
           yOffset
         );
         yOffset += 5;
-      }
 
-      // Daily table
-      const tableData = emp.dailyDetails
-        .filter((d) => !d.isOffDay)
-        .map((d) => [
-          d.date,
-          d.firstCheckIn ? new Date(d.firstCheckIn).toLocaleTimeString() : "—",
-          d.lastCheckOut ? new Date(d.lastCheckOut).toLocaleTimeString() : "—",
-          d.workedHours.toFixed(1),
-          d.lateMinutes > 0 ? `${d.lateMinutes}` : "—",
-          d.overtimeHours > 0 ? d.overtimeHours.toFixed(1) : "—",
-          d.status,
-        ]);
+        if (emp.salaryInfo) {
+          doc.text(
+            `Net Salary: ${formatCurrency(emp.salaryInfo.netSalary, currency)}`,
+            14,
+            yOffset
+          );
+          yOffset += 5;
+        }
 
-      autoTable(doc, {
-        startY: yOffset,
-        head: [["Date", "Check In", "Check Out", "Hours", "Late (m)", "OT (h)", "Status"]],
-        body: tableData,
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [16, 185, 129] },
-        margin: { left: 14 },
-      });
+        // Daily table
+        const tableData = emp.dailyDetails
+          .filter((d) => !d.isOffDay)
+          .map((d) => [
+            d.date,
+            d.firstCheckIn ? new Date(d.firstCheckIn).toLocaleTimeString() : "—",
+            d.lastCheckOut ? new Date(d.lastCheckOut).toLocaleTimeString() : "—",
+            d.workedHours.toFixed(1),
+            d.lateMinutes > 0 ? `${d.lateMinutes}` : "—",
+            d.overtimeHours > 0 ? d.overtimeHours.toFixed(1) : "—",
+            d.status,
+          ]);
 
-      yOffset = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yOffset;
-      yOffset += 10;
+        autoTable(doc, {
+          startY: yOffset,
+          head: [["Date", "Check In", "Check Out", "Hours", "Late (m)", "OT (h)", "Status"]],
+          body: tableData,
+          styles: { fontSize: 7, cellPadding: 2 },
+          headStyles: { fillColor: [16, 185, 129] },
+          margin: { left: 14 },
+        });
 
-      // New page if needed
-      if (yOffset > doc.internal.pageSize.getHeight() - 40) {
-        doc.addPage();
-        yOffset = 20;
+        yOffset = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yOffset;
+        yOffset += 10;
+
+        // New page if needed
+        if (yOffset > doc.internal.pageSize.getHeight() - 40) {
+          doc.addPage();
+          yOffset = 20;
+        }
       }
     }
 
-    doc.save(`Attindo_Report_${dateFrom}_to_${dateTo}.pdf`);
-  }, [reportData, currency, dateFrom, dateTo]);
+    const fileSuffix = filterType === "absent-on-date" ? absentDate : filterType === "working-by-shift" ? `${shiftDate}_shift` : `${dateFrom}_to_${dateTo}`;
+    doc.save(`Attindo_Report_${fileSuffix}.pdf`);
+  }, [activeReportData, reportData, absentData, shiftData, currency, dateFrom, dateTo, absentDate, shiftDate, filterType, lang]);
 
   // ─── Department Summary ───
   const departmentSummary = useMemo(() => {
@@ -538,13 +948,13 @@ export function ReportsView() {
           <FileBarChart className="h-5 w-5 text-emerald-600" />
           <h1 className="text-xl font-bold">{t("reports.title")}</h1>
         </div>
-        {reportData && (
+        {activeReportData && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={exportToExcel} disabled={reportLoading}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={exportToExcel} disabled={isActiveReportLoading}>
               <FileSpreadsheet className="h-3.5 w-3.5" />
               Excel
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={exportToPDF} disabled={reportLoading}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={exportToPDF} disabled={isActiveReportLoading}>
               <FileText className="h-3.5 w-3.5" />
               PDF
             </Button>
@@ -559,7 +969,7 @@ export function ReportsView() {
             {/* Filter Type */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("reports.filterBy")}</label>
-              <Select value={filterType} onValueChange={(v) => setFilterType(v as "department" | "employee")}>
+              <Select value={filterType} onValueChange={(v) => setFilterType(v as FilterType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="department">
@@ -568,61 +978,120 @@ export function ReportsView() {
                   <SelectItem value="employee">
                     <span className="flex items-center gap-1.5"><Users className="h-3 w-3" />{t("reports.employee")}</span>
                   </SelectItem>
+                  <SelectItem value="absent-on-date">
+                    <span className="flex items-center gap-1.5"><CalendarX className="h-3 w-3" />{t("reports.absentOnDate")}</span>
+                  </SelectItem>
+                  <SelectItem value="working-by-shift">
+                    <span className="flex items-center gap-1.5"><Shuffle className="h-3 w-3" />{t("reports.workingByShift")}</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Department/Employee Select */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                {filterType === "department" ? t("reports.selectDepartment") : t("reports.selectEmployee")}
-              </label>
-              {filterType === "department" ? (
-                <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
-                  <SelectTrigger><SelectValue placeholder={t("reports.allDepartments")} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("reports.allDepartments")}</SelectItem>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.nameAr ? `${d.name} / ${d.nameAr}` : d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                  <SelectTrigger><SelectValue placeholder={t("reports.allEmployees")} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("reports.allEmployees")}</SelectItem>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.name} ({e.employeeId})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            {/* Dynamic Filter Controls */}
+            {(filterType === "department" || filterType === "employee") && (
+              <>
+                {/* Department/Employee Select */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {filterType === "department" ? t("reports.selectDepartment") : t("reports.selectEmployee")}
+                  </label>
+                  {filterType === "department" ? (
+                    <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
+                      <SelectTrigger><SelectValue placeholder={t("reports.allDepartments")} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("reports.allDepartments")}</SelectItem>
+                        {departments.map((d) => (
+                          <SelectItem key={d.id} value={d.id}>{d.nameAr ? `${d.name} / ${d.nameAr}` : d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                      <SelectTrigger><SelectValue placeholder={t("reports.allEmployees")} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("reports.allEmployees")}</SelectItem>
+                        {employees.map((e) => (
+                          <SelectItem key={e.id} value={e.id}>{e.name} ({e.employeeId})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
 
-            {/* Date From */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3" /> {t("reports.from")}
-              </label>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            </div>
+                {/* Date From */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> {t("reports.from")}
+                  </label>
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                </div>
 
-            {/* Date To */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3" /> {t("reports.to")}
-              </label>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            </div>
+                {/* Date To */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> {t("reports.to")}
+                  </label>
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                </div>
+              </>
+            )}
+
+            {filterType === "absent-on-date" && (
+              <>
+                {/* Date picker only */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <CalendarX className="h-3 w-3" /> {t("reports.selectDate")}
+                  </label>
+                  <Input type="date" value={absentDate} onChange={(e) => setAbsentDate(e.target.value)} />
+                </div>
+                {/* Empty placeholders to keep grid alignment */}
+                <div />
+                <div />
+                <div />
+              </>
+            )}
+
+            {filterType === "working-by-shift" && (
+              <>
+                {/* Shift Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Shuffle className="h-3 w-3" /> {t("reports.selectShift")}
+                  </label>
+                  <Select value={selectedShiftId} onValueChange={setSelectedShiftId}>
+                    <SelectTrigger><SelectValue placeholder={t("reports.selectShift")} /></SelectTrigger>
+                    <SelectContent>
+                      {shifts.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.nameAr ? `${s.name} / ${s.nameAr}` : s.name} ({s.startTime} - {s.endTime})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date picker */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> {t("reports.selectDate")}
+                  </label>
+                  <Input type="date" value={shiftDate} onChange={(e) => setShiftDate(e.target.value)} />
+                </div>
+                {/* Empty placeholders to keep grid alignment */}
+                <div />
+                <div />
+              </>
+            )}
 
             {/* Generate Button */}
             <Button
               className="bg-emerald-600 hover:bg-emerald-700 gap-1.5"
               onClick={handleGenerate}
-              disabled={reportLoading || !dateFrom || !dateTo}
+              disabled={isGenerateDisabled}
             >
-              {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
+              {isActiveReportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart className="h-4 w-4" />}
               {t("reports.generate")}
             </Button>
           </div>
@@ -630,14 +1099,15 @@ export function ReportsView() {
       </Card>
 
       {/* Report Content */}
-      {reportLoading && (
+      {isActiveReportLoading && (
         <div className="space-y-3">
           <Skeleton className="h-40 w-full" />
           <Skeleton className="h-40 w-full" />
         </div>
       )}
 
-      {reportData && !reportLoading && (
+      {/* Department / Employee Report */}
+      {filterType !== "absent-on-date" && filterType !== "working-by-shift" && reportData && !reportLoading && (
         <>
           {/* Department Summary (if filtering by department with multiple results) */}
           {filterType === "department" && departmentSummary.length > 1 && (
@@ -698,8 +1168,34 @@ export function ReportsView() {
         </>
       )}
 
+      {/* Absent on Date Report */}
+      {filterType === "absent-on-date" && absentData && !absentLoading && (
+        absentData.entries.length === 0 ? (
+          <Card className="p-8 text-center">
+            <CalendarX className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="font-semibold mb-1">{t("reports.noData")}</h3>
+            <p className="text-sm text-muted-foreground">{t("reports.noDataDesc")}</p>
+          </Card>
+        ) : (
+          <AbsentOnDateResults data={absentData} t={t} lang={lang} />
+        )
+      )}
+
+      {/* Working by Shift Report */}
+      {filterType === "working-by-shift" && shiftData && !shiftLoading && (
+        shiftData.entries.length === 0 ? (
+          <Card className="p-8 text-center">
+            <Shuffle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="font-semibold mb-1">{t("reports.noData")}</h3>
+            <p className="text-sm text-muted-foreground">{t("reports.noDataDesc")}</p>
+          </Card>
+        ) : (
+          <WorkingByShiftResults data={shiftData} t={t} lang={lang} />
+        )
+      )}
+
       {/* Empty state before generating */}
-      {!reportData && !reportLoading && !reportGenerated && (
+      {!activeReportData && !isActiveReportLoading && !reportGenerated && (
         <Card className="p-8 text-center">
           <FileBarChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="font-semibold mb-1">{t("reports.welcome")}</h3>

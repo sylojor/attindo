@@ -13,6 +13,18 @@ import {
   ChevronLeft,
   ChevronRight,
   UserPlus,
+  Info,
+  Clock,
+  DollarSign,
+  CreditCard,
+  CalendarDays,
+  User,
+  Phone,
+  Mail,
+  Building2,
+  Briefcase,
+  Fingerprint,
+  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -25,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -68,6 +81,20 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/hooks/use-translation";
+import { useAppStore } from "@/store/app-store";
+
+// ─── Helpers ───
+function formatCurrency(amount: number, currency = "SAR"): string {
+  return `${currency} ${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function useFormatCurrency() {
+  const { currency } = useAppStore();
+  return (amount: number) => formatCurrency(amount, currency);
+}
 
 interface Employee {
   id: string;
@@ -114,6 +141,86 @@ interface EmployeesResponse {
   totalPages: number;
 }
 
+// ─── Profile Types ───
+interface EmployeeProfile {
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    nameAr: string | null;
+    department: { id: string; name: string; nameAr: string | null } | null;
+    position: string | null;
+    phone: string | null;
+    email: string | null;
+    fingerprintId: number | null;
+    isActive: boolean;
+    hireDate: string | null;
+    createdAt: string;
+  };
+  salaryInfo: {
+    basicSalary: number;
+    housingAllowance: number;
+    transportAllowance: number;
+    foodAllowance: number;
+    otherAllowances: number;
+    grossSalary: number;
+    overtimeRate: number;
+    deductionPerLate: number;
+    deductionPerAbsent: number;
+    currency: string;
+    effectiveDate: string;
+  } | null;
+  activeLoans: {
+    id: string;
+    type: string;
+    amount: number;
+    monthlyDeduction: number;
+    remainingBalance: number;
+    issueDate: string;
+    notes: string | null;
+  }[];
+  shiftInfo: {
+    id: string;
+    name: string;
+    nameAr: string | null;
+    startTime: string;
+    endTime: string;
+    gracePeriod: number;
+    isOvernight: boolean;
+    color: string;
+  } | null;
+  attendanceSummary: {
+    presentDays: number;
+    lateDays: number;
+    absentDays: number;
+    totalWorkingDays: number;
+    totalWorkedHours: number;
+    overtimeHours: number;
+  };
+  recentAttendance: {
+    id: string;
+    timestamp: string;
+    verifyMode: string;
+    ioMode: number;
+    status: string;
+    device: { id: string; name: string };
+  }[];
+  customAllowances: {
+    id: string;
+    name: string;
+    nameAr: string | null;
+    amount: number;
+    type: string;
+  }[];
+  customDeductions: {
+    id: string;
+    name: string;
+    nameAr: string | null;
+    amount: number;
+    type: string;
+  }[];
+}
+
 const employeeSchema = z.object({
   employeeId: z.string().min(1, "Employee ID is required"),
   name: z.string().min(1, "Name is required"),
@@ -128,6 +235,364 @@ const employeeSchema = z.object({
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
+// ─── Profile Dialog Component ───
+function EmployeeProfileDialog({
+  employeeId,
+  open,
+  onOpenChange,
+}: {
+  employeeId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const formatAmt = useFormatCurrency();
+
+  const { data: profile, isLoading } = useQuery<EmployeeProfile>({
+    queryKey: ["employee-profile", employeeId],
+    queryFn: async () => {
+      if (!employeeId) return null;
+      const res = await fetch(`/api/employees/${employeeId}/profile`);
+      if (!res.ok) throw new Error("Failed to fetch profile");
+      return res.json();
+    },
+    enabled: !!employeeId && open,
+  });
+
+  const emp = profile?.employee;
+  const salary = profile?.salaryInfo;
+  const loans = profile?.activeLoans ?? [];
+  const summary = profile?.attendanceSummary;
+  const recentAtt = profile?.recentAttendance ?? [];
+  const shiftInfo = profile?.shiftInfo;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5 text-emerald-600" />
+            {t("employees.profile")}
+          </DialogTitle>
+          <DialogDescription>
+            {emp ? `${emp.name}${emp.nameAr ? ` / ${emp.nameAr}` : ""}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="space-y-4 py-4">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ) : !profile ? (
+          <div className="py-8 text-center text-muted-foreground">
+            {t("common.error")}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <InfoRow icon={<User className="h-3.5 w-3.5" />} label={t("employees.name")} value={emp.name} />
+              <InfoRow icon={<User className="h-3.5 w-3.5" />} label={t("employees.nameAr")} value={emp.nameAr || "—"} dir="rtl" />
+              <InfoRow icon={<Briefcase className="h-3.5 w-3.5" />} label={t("employees.empId")} value={emp.employeeId} mono />
+              <InfoRow icon={<Fingerprint className="h-3.5 w-3.5" />} label={t("employees.fingerprintId")} value={emp.fingerprintId != null ? String(emp.fingerprintId) : "—"} mono />
+              <InfoRow icon={<Building2 className="h-3.5 w-3.5" />} label={t("employees.department")} value={emp.department?.name || "—"} />
+              <InfoRow icon={<Briefcase className="h-3.5 w-3.5" />} label={t("employees.position")} value={emp.position || "—"} />
+              <InfoRow icon={<Phone className="h-3.5 w-3.5" />} label={t("employees.phone")} value={emp.phone || "—"} />
+              <InfoRow icon={<Mail className="h-3.5 w-3.5" />} label={t("employees.email")} value={emp.email || "—"} />
+              {emp.hireDate && (
+                <InfoRow icon={<CalendarDays className="h-3.5 w-3.5" />} label={t("employees.hireDate")} value={new Date(emp.hireDate).toLocaleDateString()} />
+              )}
+              <InfoRow
+                icon={<User className="h-3.5 w-3.5" />}
+                label={t("employees.status")}
+                value={
+                  <Badge
+                    className={`text-xs ${
+                      emp.isActive
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {emp.isActive ? t("employees.active") : t("employees.inactive")}
+                  </Badge>
+                }
+              />
+            </div>
+
+            <Separator />
+
+            {/* Shift Info */}
+            <div>
+              <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                <Clock className="h-4 w-4 text-emerald-600" />
+                {t("employees.shiftInfo")}
+              </h4>
+              {shiftInfo ? (
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: shiftInfo.color }} />
+                    <span className="font-medium">{shiftInfo.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t("shifts.startTime")}:</span>{" "}
+                    <span className="font-mono">{shiftInfo.startTime}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t("shifts.endTime")}:</span>{" "}
+                    <span className="font-mono">{shiftInfo.endTime}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("employees.noShift")}</p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Attendance Summary */}
+            <div>
+              <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                <CalendarDays className="h-4 w-4 text-emerald-600" />
+                {t("employees.attendanceSummary")}
+                <span className="text-xs text-muted-foreground font-normal">(30 {t("reports.of").toLowerCase()} {t("reports.day").toLowerCase()}s)</span>
+              </h4>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                <SummaryCard
+                  label={t("employees.daysPresent")}
+                  value={summary?.presentDays ?? 0}
+                  color="text-emerald-600"
+                  bg="bg-emerald-50 dark:bg-emerald-900/20"
+                />
+                <SummaryCard
+                  label={t("employees.daysLate")}
+                  value={summary?.lateDays ?? 0}
+                  color="text-amber-600"
+                  bg="bg-amber-50 dark:bg-amber-900/20"
+                />
+                <SummaryCard
+                  label={t("employees.daysAbsent")}
+                  value={summary?.absentDays ?? 0}
+                  color="text-red-600"
+                  bg="bg-red-50 dark:bg-red-900/20"
+                />
+                <SummaryCard
+                  label={t("employees.totalWorked")}
+                  value={`${summary?.totalWorkedHours ?? 0}h`}
+                  color="text-blue-600"
+                  bg="bg-blue-50 dark:bg-blue-900/20"
+                />
+                <SummaryCard
+                  label={t("employees.overtimeHours")}
+                  value={`${summary?.overtimeHours ?? 0}h`}
+                  color="text-teal-600"
+                  bg="bg-teal-50 dark:bg-teal-900/20"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Salary Info */}
+            <div>
+              <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                <DollarSign className="h-4 w-4 text-emerald-600" />
+                {t("employees.salaryInfo")}
+              </h4>
+              {salary ? (
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("employees.basicSalary")}</span>
+                    <span>{formatAmt(salary.basicSalary)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("employees.housingAllowance")}</span>
+                    <span>{formatAmt(salary.housingAllowance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("employees.transportAllowance")}</span>
+                    <span>{formatAmt(salary.transportAllowance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("employees.foodAllowance")}</span>
+                    <span>{formatAmt(salary.foodAllowance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{t("employees.otherAllowances")}</span>
+                    <span>{formatAmt(salary.otherAllowances)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-semibold">
+                    <span>{t("employees.grossSalary")}</span>
+                    <span className="text-emerald-600">{formatAmt(salary.grossSalary)}</span>
+                  </div>
+                  {/* Custom allowances & deductions */}
+                  {(profile.customAllowances.length > 0 || profile.customDeductions.length > 0) && (
+                    <>
+                      <Separator />
+                      {profile.customAllowances.map((a) => (
+                        <div key={a.id} className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                          <span className="text-muted-foreground">+ {a.nameAr || a.name}</span>
+                          <span>{formatAmt(a.amount)}</span>
+                        </div>
+                      ))}
+                      {profile.customDeductions.map((d) => (
+                        <div key={d.id} className="flex justify-between text-red-600">
+                          <span className="text-muted-foreground">- {d.nameAr || d.name}</span>
+                          <span>{formatAmt(d.amount)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("employees.noSalary")}</p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Active Loans */}
+            <div>
+              <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                <CreditCard className="h-4 w-4 text-emerald-600" />
+                {t("employees.activeLoans")}
+              </h4>
+              {loans.length > 0 ? (
+                <div className="space-y-2">
+                  {loans.map((loan) => (
+                    <div key={loan.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {loan.type === "advance" ? t("employees.advance") : t("employees.loan")}
+                        </Badge>
+                        <span className="font-medium">{formatAmt(loan.amount)}</span>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        <div>{t("employees.remainingBalance")}: <span className="font-medium text-foreground">{formatAmt(loan.remainingBalance)}</span></div>
+                        <div>{t("employees.monthlyDeduction")}: <span className="font-medium text-foreground">{formatAmt(loan.monthlyDeduction)}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("employees.noLoans")}</p>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Recent Attendance */}
+            <div>
+              <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                <Clock className="h-4 w-4 text-emerald-600" />
+                {t("employees.recentAttendance")}
+              </h4>
+              {recentAtt.length > 0 ? (
+                <div className="max-h-52 overflow-y-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs h-8">{t("employees.timestamp")}</TableHead>
+                        <TableHead className="text-xs h-8">{t("employees.verifyMode")}</TableHead>
+                        <TableHead className="text-xs h-8">{t("attendance.ioMode")}</TableHead>
+                        <TableHead className="text-xs h-8">{t("employees.device")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentAtt.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-xs font-mono py-1.5">
+                            {new Date(log.timestamp).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-xs py-1.5">
+                            <Badge variant="outline" className="text-[10px] px-1.5">
+                              {log.verifyMode}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs py-1.5">
+                            <Badge
+                              className={`text-[10px] px-1.5 ${
+                                log.ioMode === 0
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                              }`}
+                            >
+                              {log.ioMode === 0 ? t("attendance.checkIn") : t("attendance.checkOut")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs py-1.5 text-muted-foreground">
+                            {log.device.name}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("attendance.noRecords")}</p>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Small helper components ───
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  mono,
+  dir,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+  dir?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground shrink-0">{icon}</span>
+      <span className="text-muted-foreground text-xs min-w-[80px]">{label}:</span>
+      <span className={`text-xs ${mono ? "font-mono" : "font-medium"}`} dir={dir}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  color,
+  bg,
+}: {
+  label: string;
+  value: number | string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className={`rounded-lg p-3 text-center ${bg}`}>
+      <div className={`text-lg font-bold ${color}`}>{value}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+// ─── Main Component ───
+
 export function EmployeesView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -141,6 +606,8 @@ export function EmployeesView() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const limit = 20;
 
   const { data, isLoading } = useQuery<EmployeesResponse>({
@@ -297,6 +764,11 @@ export function EmployeesView() {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
     setPage(1);
+  };
+
+  const handleOpenProfile = (empId: string) => {
+    setProfileId(empId);
+    setProfileOpen(true);
   };
 
   // Department select for forms
@@ -519,7 +991,7 @@ export function EmployeesView() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={t("employees.search")}
+                placeholder={t("employees.searchById")}
                 value={search}
                 onChange={handleSearch}
                 className="pl-9"
@@ -563,7 +1035,7 @@ export function EmployeesView() {
                   <TableHead className="hidden lg:table-cell">{t("employees.shift")}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t("employees.fingerprintId")}</TableHead>
                   <TableHead>{t("employees.status")}</TableHead>
-                  <TableHead className="w-20">{t("employees.actions")}</TableHead>
+                  <TableHead className="w-24">{t("employees.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -575,7 +1047,11 @@ export function EmployeesView() {
                   </TableRow>
                 )}
                 {data?.employees.map((emp) => (
-                  <TableRow key={emp.id}>
+                  <TableRow
+                    key={emp.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleOpenProfile(emp.id)}
+                  >
                     <TableCell className="font-mono text-xs">{emp.employeeId}</TableCell>
                     <TableCell className="font-medium">{emp.name}</TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground" dir="rtl">
@@ -614,7 +1090,10 @@ export function EmployeesView() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenProfile(emp.id)} title={t("employees.profile")}>
+                          <Info className="h-3.5 w-3.5 text-emerald-600" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(emp)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -649,6 +1128,13 @@ export function EmployeesView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Employee Profile Dialog */}
+      <EmployeeProfileDialog
+        employeeId={profileId}
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+      />
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

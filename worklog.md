@@ -69,3 +69,29 @@ Stage Summary:
 - Currency changes are now auto-saved immediately on selection (no need to click Save button)
 - Language changes are also auto-saved immediately
 - ZK sync service orphaned device cleaned up
+
+---
+Task ID: 4
+Agent: Main
+Task: Add Holidays, Reports filters, and Employee profile search
+
+Work Log:
+- Added Holiday model to Prisma schema (date, name, nameAr, isRecurring)
+- Created /api/holidays routes (GET, POST) and /api/holidays/[id] (PUT, DELETE)
+- Fixed DateTime comparison issues in Prisma queries (used findMany + JS filter instead of findFirst with date range)
+- Added Holidays tab to shifts.tsx with add/delete UI, bilingual labels
+- Updated reports API with two new report types:
+  - absent-on-date: Shows all absent/off employees for a specific date
+  - working-by-shift: Shows all employees working a shift on a specific date
+- Fixed server crash issues by simplifying Prisma queries (using select instead of include, separate attendance log queries)
+- Added Reports UI for new filter types (absent on date, working by shift)
+- Added Employee profile dialog with full info (salary, loans, attendance, overtime)
+- Added search by fingerprint ID and employee ID in employee search
+- Created /api/employees/[id]/profile route for comprehensive employee data
+- Added bilingual translations for all new features
+
+Stage Summary:
+- Holidays: Can add/delete specific date holidays with recurring option
+- Reports: Can filter by absent-on-date and working-by-shift with date/shift selectors
+- Employee Profile: Click employee to see full profile with salary, loans, attendance summary
+- Search: Enhanced to search by name, employee ID, or fingerprint ID

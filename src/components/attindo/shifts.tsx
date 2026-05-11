@@ -10,6 +10,8 @@ import {
   Pencil,
   Trash2,
   CalendarClock,
+  CalendarPlus,
+  CalendarDays,
   Clock,
   Moon,
   Sun,
@@ -113,6 +115,14 @@ interface EmployeeOption {
   name: string;
 }
 
+interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  nameAr: string | null;
+  isRecurring: boolean;
+}
+
 // Zod schemas
 const shiftSchema = z.object({
   name: z.string().min(1, "Shift name is required"),
@@ -136,6 +146,15 @@ const scheduleSchema = z.object({
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
+
+const holidaySchema = z.object({
+  date: z.string().min(1, "Date is required"),
+  name: z.string().min(1, "Holiday name is required"),
+  nameAr: z.string().optional().default(""),
+  isRecurring: z.boolean().default(false),
+});
+
+type HolidayFormValues = z.infer<typeof holidaySchema>;
 
 const shiftColors = [
   "#10b981", "#14b8a6", "#06b6d4", "#f59e0b",
@@ -174,6 +193,10 @@ export function ShiftsView() {
   const [addScheduleOpen, setAddScheduleOpen] = useState(false);
   const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null);
 
+  // Holiday dialog states
+  const [addHolidayOpen, setAddHolidayOpen] = useState(false);
+  const [deleteHolidayId, setDeleteHolidayId] = useState<string | null>(null);
+
   // Queries
   const { data: shifts = [], isLoading: shiftsLoading } = useQuery<Shift[]>({
     queryKey: ["shifts"],
@@ -200,6 +223,15 @@ export function ShiftsView() {
       if (!res.ok) return [];
       const data = await res.json();
       return data.employees || [];
+    },
+  });
+
+  const { data: holidays = [], isLoading: holidaysLoading } = useQuery<Holiday[]>({
+    queryKey: ["holidays"],
+    queryFn: async () => {
+      const res = await fetch("/api/holidays");
+      if (!res.ok) throw new Error("Failed to fetch holidays");
+      return res.json();
     },
   });
 
@@ -234,6 +266,17 @@ export function ShiftsView() {
     },
   });
   const watchedDayOfWeek = addScheduleForm.watch("dayOfWeek");
+
+  // Holiday form
+  const addHolidayForm = useForm<HolidayFormValues>({
+    resolver: zodResolver(holidaySchema),
+    defaultValues: {
+      date: format(new Date(), "yyyy-MM-dd"),
+      name: "",
+      nameAr: "",
+      isRecurring: false,
+    },
+  });
 
   // Shift mutations
   const addShiftMutation = useMutation({
@@ -346,6 +389,47 @@ export function ShiftsView() {
     },
   });
 
+  // Holiday mutations
+  const addHolidayMutation = useMutation({
+    mutationFn: async (values: HolidayFormValues) => {
+      const res = await fetch("/api/holidays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create holiday");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      setAddHolidayOpen(false);
+      addHolidayForm.reset();
+      toast({ title: t("shifts.holidayCreated") });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteHolidayMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/holidays/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete holiday");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      setDeleteHolidayId(null);
+      toast({ title: t("shifts.holidayDeleted") });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete holiday", variant: "destructive" });
+    },
+  });
+
   const handleEditShift = (shift: Shift) => {
     setEditingShift(shift);
     editShiftForm.reset({
@@ -360,7 +444,7 @@ export function ShiftsView() {
     setEditShiftOpen(true);
   };
 
-  if (shiftsLoading || schedulesLoading) {
+  if (shiftsLoading || schedulesLoading || holidaysLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-64" />
@@ -389,6 +473,10 @@ export function ShiftsView() {
           <TabsTrigger value="schedules" className="gap-1.5">
             <CalendarClock className="h-3.5 w-3.5" />
             {t("shifts.schedules")}
+          </TabsTrigger>
+          <TabsTrigger value="holidays" className="gap-1.5">
+            <Palmtree className="h-3.5 w-3.5" />
+            {t("shifts.holidays")}
           </TabsTrigger>
         </TabsList>
 
@@ -885,6 +973,175 @@ export function ShiftsView() {
             </Card>
           )}
         </TabsContent>
+        {/* ─── HOLIDAYS TAB ─── */}
+        <TabsContent value="holidays" className="space-y-4 mt-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">{t("shifts.holidays")}</h2>
+            <Dialog open={addHolidayOpen} onOpenChange={setAddHolidayOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+                  <CalendarPlus className="h-4 w-4" />
+                  {t("shifts.addHoliday")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t("shifts.addHoliday")}</DialogTitle>
+                  <DialogDescription>{t("shifts.noHolidaysDesc")}</DialogDescription>
+                </DialogHeader>
+                <Form {...addHolidayForm}>
+                  <form
+                    onSubmit={addHolidayForm.handleSubmit((v) => addHolidayMutation.mutate(v))}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={addHolidayForm.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("shifts.holidayDate")} *</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={addHolidayForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("shifts.holidayName")} *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Eid Al-Fitr" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addHolidayForm.control}
+                        name="nameAr"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("shifts.holidayNameAr")}</FormLabel>
+                            <FormControl>
+                              <Input placeholder="عيد الفطر" dir="rtl" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={addHolidayForm.control}
+                      name="isRecurring"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-3 rounded-lg border p-3 bg-amber-50 dark:bg-amber-950/20">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded accent-amber-600"
+                            />
+                          </FormControl>
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-amber-600" />
+                            <FormLabel className="!mt-0 text-sm font-medium cursor-pointer">
+                              {t("shifts.recurring")}
+                            </FormLabel>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setAddHolidayOpen(false)}>
+                        {t("shifts.cancel")}
+                      </Button>
+                      <Button
+                        type="submit"
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        disabled={addHolidayMutation.isPending}
+                      >
+                        {addHolidayMutation.isPending ? t("shifts.creating") : t("shifts.addHoliday")}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {holidays.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Palmtree className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="font-semibold mb-1">{t("shifts.noHolidays")}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t("shifts.noHolidaysDesc")}
+              </p>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="max-h-[calc(100vh-320px)] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("shifts.holidayDate")}</TableHead>
+                        <TableHead>{t("shifts.holidayName")}</TableHead>
+                        <TableHead className="hidden sm:table-cell">{t("shifts.holidayNameAr")}</TableHead>
+                        <TableHead className="hidden md:table-cell">{t("shifts.recurring")}</TableHead>
+                        <TableHead className="w-16"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {holidays.map((holiday) => (
+                        <TableRow key={holiday.id} className="bg-amber-50/30 dark:bg-amber-950/5">
+                          <TableCell className="text-sm">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-3.5 w-3.5 text-amber-600" />
+                              {format(new Date(holiday.date), "MMM d, yyyy")}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium text-sm">{holiday.name}</span>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm" dir="rtl">
+                            {holiday.nameAr || "—"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {holiday.isRecurring ? (
+                              <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300 bg-amber-100 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950/30 text-[10px]">
+                                <CalendarDays className="h-3 w-3" />
+                                {t("shifts.recurringYes")}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{t("shifts.recurringNo")}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => setDeleteHolidayId(holiday.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Edit Shift Dialog */}
@@ -1075,6 +1332,29 @@ export function ShiftsView() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Holiday Confirmation */}
+      <AlertDialog open={!!deleteHolidayId} onOpenChange={() => setDeleteHolidayId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("shifts.deleteHoliday")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("shifts.deleteHolidayDesc")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("shifts.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteHolidayId) deleteHolidayMutation.mutate(deleteHolidayId);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("shifts.deleteHoliday")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
