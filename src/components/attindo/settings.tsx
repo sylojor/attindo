@@ -138,7 +138,21 @@ export function SettingsView() {
               <Coins className="h-4 w-4 text-emerald-600" />
               {t("settings.currency")}
             </Label>
-            <Select value={currency} onValueChange={setCurrency}>
+            <Select value={currency} onValueChange={(v) => {
+              setCurrency(v);
+              setStoreCurrency(v);
+              // Auto-save currency change immediately
+              fetch("/api/settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ currency: v }),
+              }).then(() => {
+                queryClient.invalidateQueries({ queryKey: ["settings"] });
+                toast({ title: t("settings.saved") });
+              }).catch(() => {
+                toast({ title: t("common.error"), variant: "destructive" });
+              });
+            }}>
               <SelectTrigger className="w-full sm:w-80">
                 <SelectValue />
               </SelectTrigger>
@@ -163,6 +177,17 @@ export function SettingsView() {
               onValueChange={(v) => {
                 setLanguage(v);
                 setLang(v as Lang);
+                // Auto-save language change immediately
+                fetch("/api/settings", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ lang: v }),
+                }).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ["settings"] });
+                  toast({ title: t("settings.saved") });
+                }).catch(() => {
+                  toast({ title: t("common.error"), variant: "destructive" });
+                });
               }}
             >
               <SelectTrigger className="w-full sm:w-80">

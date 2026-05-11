@@ -103,6 +103,10 @@ export async function PUT(
 
         // Update device info if connection successful
         if (zkData.success && zkData.info) {
+          // Convert capabilities array to comma-separated string for Prisma
+          const capabilitiesStr = Array.isArray(zkData.info.capabilities)
+            ? zkData.info.capabilities.join(",")
+            : zkData.info.capabilities;
           await db.device.update({
             where: { id },
             data: {
@@ -111,7 +115,7 @@ export async function PUT(
               firmware: zkData.info.firmware || existing.firmware,
               // Update capabilities and counts from ZK service if available
               ...(zkData.info.deviceModel && { deviceModel: zkData.info.deviceModel }),
-              ...(zkData.info.capabilities && { capabilities: zkData.info.capabilities }),
+              ...(capabilitiesStr && { capabilities: capabilitiesStr }),
               ...(zkData.info.fingerCount !== undefined && { fingerCount: zkData.info.fingerCount }),
               ...(zkData.info.faceCount !== undefined && { faceCount: zkData.info.faceCount }),
               ...(zkData.info.palmCount !== undefined && { palmCount: zkData.info.palmCount }),
@@ -149,6 +153,10 @@ export async function PUT(
         if (zkData.success && zkData.info) {
           const detectedModel = zkData.info.deviceModel || existing.deviceModel;
           const detectedCapabilities = zkData.info.capabilities || existing.capabilities;
+          // Convert capabilities array to comma-separated string for Prisma
+          const capabilitiesStr = Array.isArray(detectedCapabilities)
+            ? detectedCapabilities.join(",")
+            : detectedCapabilities;
 
           // Update device with detected capabilities and model
           await db.device.update({
@@ -158,7 +166,7 @@ export async function PUT(
               serialNumber: zkData.info.serialNumber || existing.serialNumber,
               firmware: zkData.info.firmware || existing.firmware,
               ...(detectedModel && { deviceModel: detectedModel }),
-              ...(detectedCapabilities && { capabilities: detectedCapabilities }),
+              ...(capabilitiesStr && { capabilities: capabilitiesStr }),
               ...(zkData.info.fingerCount !== undefined && { fingerCount: zkData.info.fingerCount }),
               ...(zkData.info.faceCount !== undefined && { faceCount: zkData.info.faceCount }),
               ...(zkData.info.palmCount !== undefined && { palmCount: zkData.info.palmCount }),

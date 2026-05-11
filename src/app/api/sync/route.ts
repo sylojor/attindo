@@ -204,13 +204,17 @@ async function performDeviceSync(deviceId: string, syncLogId: string) {
         const zkDevices: any[] = await deviceInfoRes.json();
         const zkDevice = zkDevices.find((d: any) => d.id === deviceId);
         if (zkDevice) {
+          // Convert capabilities array to comma-separated string for Prisma
+          const capabilitiesStr = Array.isArray(zkDevice.capabilities)
+            ? zkDevice.capabilities.join(",")
+            : zkDevice.capabilities;
           await db.device.update({
             where: { id: deviceId },
             data: {
               status: "online",
               lastSyncAt: new Date(),
               ...(zkDevice.deviceModel && { deviceModel: zkDevice.deviceModel }),
-              ...(zkDevice.capabilities && { capabilities: zkDevice.capabilities }),
+              ...(capabilitiesStr && { capabilities: capabilitiesStr }),
               ...(zkDevice.fingerCount !== undefined && { fingerCount: zkDevice.fingerCount }),
               ...(zkDevice.faceCount !== undefined && { faceCount: zkDevice.faceCount }),
               ...(zkDevice.palmCount !== undefined && { palmCount: zkDevice.palmCount }),

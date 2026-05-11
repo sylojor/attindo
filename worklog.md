@@ -49,3 +49,23 @@ Stage Summary:
 - Bilingual (Arabic/English) support throughout
 - Department-level and employee-level filtering
 - PDF and Excel export capabilities
+
+---
+Task ID: 3
+Agent: Main
+Task: Fix device addition bug and currency auto-save
+
+Work Log:
+- Identified root cause: ZK sync service returns `capabilities` as an array (e.g., `["fingerprint"]`) but Prisma schema expects a comma-separated String. This caused Prisma errors during device sync that corrupted device state.
+- Fixed capabilities array→string conversion in `/api/sync/route.ts` (line 207-210)
+- Fixed capabilities array→string conversion in `/api/devices/[id]/route.ts` for both `test-connection` (line 106-109) and `detect-capabilities` (line 156-159) actions
+- Cleaned up orphaned device (cmp1gv8ij000tknl26wwdiero) from ZK service
+- Fixed currency auto-save: changed settings.tsx to immediately save currency and language changes on Select change, instead of requiring a separate Save button click. This ensures the store and backend stay in sync.
+- Also added auto-save for language changes
+- Tested device creation and sync - no more Prisma errors
+
+Stage Summary:
+- Device addition now works correctly - capabilities are properly converted from array to string
+- Currency changes are now auto-saved immediately on selection (no need to click Save button)
+- Language changes are also auto-saved immediately
+- ZK sync service orphaned device cleaned up
