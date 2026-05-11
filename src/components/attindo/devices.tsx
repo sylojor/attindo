@@ -227,6 +227,7 @@ export function DevicesView() {
   const { syncProgress, updateSyncProgress } = useAppStore();
   const { t } = useTranslation();
   const [addOpen, setAddOpen] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [syncingDevices, setSyncingDevices] = useState<Set<string>>(new Set());
   const [deviceDetailId, setDeviceDetailId] = useState<string | null>(null);
@@ -272,18 +273,28 @@ export function DevicesView() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to add device");
+        // Translate known error messages
+        const msg = err.error || "Failed to add device";
+        if (msg.includes("already exists")) {
+          throw new Error(t("devices.duplicateIp"));
+        }
+        if (msg.includes("Maximum") || msg.includes("maximum")) {
+          throw new Error(t("devices.maxDevices"));
+        }
+        throw new Error(msg);
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       setAddOpen(false);
+      setAddError(null);
       addForm.reset();
       toast({ title: t("devices.deviceAdded"), description: t("devices.autoTesting") });
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setAddError(error.message);
+      toast({ title: t("common.error"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -651,7 +662,7 @@ export function DevicesView() {
             <RefreshCw className={`h-4 w-4 ${syncingDevices.size > 0 ? "animate-spin" : ""}`} />
             {t("devices.syncAll")}
           </Button>
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (open) setAddError(null); }}>
             <DialogTrigger asChild>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700 gap-2"
@@ -668,6 +679,12 @@ export function DevicesView() {
                   {t("devices.addZKTecoDesc")}
                 </DialogDescription>
               </DialogHeader>
+              {addError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-sm text-red-700 dark:text-red-400 flex items-center gap-2">
+                  <Radio className="h-4 w-4 shrink-0" />
+                  {addError}
+                </div>
+              )}
               <Form {...addForm}>
                 <form
                   onSubmit={addForm.handleSubmit((v) => addMutation.mutate(v))}
