@@ -1,5 +1,5 @@
 // Attindo HR/Payroll - Database Schema
-// v1.14.0
+// v1.16.0
 
 generator client {
   provider = "prisma-client-js"
@@ -41,12 +41,20 @@ model Device {
   name         String
   ip           String
   port         Int      @default(4370)
-  deviceType   String   @default("ZKTeco") // ZKTeco, ZK
+  deviceType   String   @default("ZKTeco") // ZKTeco, ZK, MB20, SpeedFace, iFace, inBio
+  deviceModel  String?  // Specific model: MB20, F18, SpeedFace-V5L, etc.
   serialNumber String?
   firmware     String?
   status       String   @default("offline") // online, offline, syncing, error
   lastSyncAt   DateTime?
   isActive     Boolean  @default(true)
+  // Multi-biometric capabilities (auto-detected from device)
+  capabilities String   @default("fingerprint") // comma-separated: fingerprint,face,palm,card,password
+  fingerCount  Int      @default(0) // number of fingerprint templates on device
+  faceCount    Int      @default(0) // number of face templates on device
+  palmCount    Int      @default(0) // number of palm templates on device
+  userCount    Int      @default(0) // total users on device
+  logCount     Int      @default(0) // total attendance logs on device
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -130,6 +138,9 @@ model DeviceEmployee {
   employee     Employee @relation(fields: [employeeId], references: [id])
   fingerprintId Int     // ID assigned on the device
   isUploaded   Boolean  @default(false) // whether employee data is uploaded to device
+  hasFinger    Boolean  @default(false) // fingerprint template uploaded
+  hasFace      Boolean  @default(false) // face template uploaded (MB20/SpeedFace/iFace)
+  hasPalm      Boolean  @default(false) // palm template uploaded (MB20)
   lastSyncAt   DateTime?
   createdAt    DateTime @default(now())
 

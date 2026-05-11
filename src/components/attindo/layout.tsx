@@ -26,7 +26,7 @@ import { AttendanceView } from "./attendance";
 import { ShiftsView } from "./shifts";
 import { PayrollView } from "./payroll";
 
-const APP_VERSION = "v1.15.0";
+const APP_VERSION = "v1.16.0";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },

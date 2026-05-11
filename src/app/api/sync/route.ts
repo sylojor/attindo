@@ -195,11 +195,47 @@ async function performDeviceSync(deviceId: string, syncLogId: string) {
       // Attendance fetch failed, but sync itself may have worked
     }
 
-    // Update device status to online
-    await db.device.update({
-      where: { id: deviceId },
-      data: { status: "online", lastSyncAt: new Date() },
-    }).catch(() => {});
+    // Update device status to online and sync device info from ZK service
+    try {
+      const deviceInfoRes = await fetch(`${ZK_SERVICE_URL}/api/devices`, {
+        signal: AbortSignal.timeout(ZK_TIMEOUT),
+      });
+      if (deviceInfoRes.ok) {
+        const zkDevices: any[] = await deviceInfoRes.json();
+        const zkDevice = zkDevices.find((d: any) => d.id === deviceId);
+        if (zkDevice) {
+          await db.device.update({
+            where: { id: deviceId },
+            data: {
+              status: "online",
+              lastSyncAt: new Date(),
+              ...(zkDevice.deviceModel && { deviceModel: zkDevice.deviceModel }),
+              ...(zkDevice.capabilities && { capabilities: zkDevice.capabilities }),
+              ...(zkDevice.fingerCount !== undefined && { fingerCount: zkDevice.fingerCount }),
+              ...(zkDevice.faceCount !== undefined && { faceCount: zkDevice.faceCount }),
+              ...(zkDevice.palmCount !== undefined && { palmCount: zkDevice.palmCount }),
+              ...(zkDevice.userCount !== undefined && { userCount: zkDevice.userCount }),
+              ...(zkDevice.logCount !== undefined && { logCount: zkDevice.logCount }),
+            },
+          });
+        } else {
+          await db.device.update({
+            where: { id: deviceId },
+            data: { status: "online", lastSyncAt: new Date() },
+          });
+        }
+      } else {
+        await db.device.update({
+          where: { id: deviceId },
+          data: { status: "online", lastSyncAt: new Date() },
+        });
+      }
+    } catch {
+      await db.device.update({
+        where: { id: deviceId },
+        data: { status: "online", lastSyncAt: new Date() },
+      }).catch(() => {});
+    }
 
     // Count saved records
     const savedCount = await db.attendanceLog.count({
@@ -239,6 +275,8 @@ async function saveAttendanceRecords(deviceId: string, records: Array<{
   const verifyModeMap: Record<number, string> = {
     0: "fingerprint", 1: "fingerprint", 2: "card", 3: "password",
     4: "face", 5: "palm", 6: "iris", 7: "vein",
+    8: "face+password", 9: "palm+password", 10: "finger+password",
+    11: "face+finger", 12: "card+password", 13: "finger+card",
   };
   const ioModeMap: Record<number, string> = {
     0: "check-in", 1: "check-out", 4: "check-in", 5: "check-out",

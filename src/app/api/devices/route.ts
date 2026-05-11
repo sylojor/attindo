@@ -26,11 +26,21 @@ export async function GET() {
   }
 }
 
+// Default capabilities based on device type
+const defaultCapabilities: Record<string, string> = {
+  "MB20": "fingerprint,face,palm,card,password",
+  "SpeedFace": "fingerprint,face,card",
+  "iFace": "fingerprint,face",
+  "ZKTeco": "fingerprint,card,password",
+  "inBio": "fingerprint,card,password",
+  "ZK": "fingerprint,card,password",
+};
+
 // POST /api/devices - Create/register a new device
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, ip, port, deviceType, serialNumber, firmware } = body;
+    const { name, ip, port, deviceType, deviceModel, capabilities, serialNumber, firmware } = body;
 
     // Validate required fields
     if (!name || !ip) {
@@ -61,13 +71,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine capabilities: explicit > deviceModel-based > deviceType-based
+    const resolvedDeviceType = deviceType || "ZKTeco";
+    const resolvedCapabilities = capabilities
+      || (deviceModel && defaultCapabilities[deviceModel])
+      || defaultCapabilities[resolvedDeviceType]
+      || "fingerprint";
+
     // Create device in database
     const device = await db.device.create({
       data: {
         name,
         ip,
         port: devicePort,
-        deviceType: deviceType || "ZKTeco",
+        deviceType: resolvedDeviceType,
+        deviceModel: deviceModel || null,
+        capabilities: resolvedCapabilities,
         serialNumber: serialNumber || null,
         firmware: firmware || null,
         status: "offline",
@@ -80,7 +99,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Create DeviceEmployee records for all active employees
-    assignEmployeesToDevice(device.id).catch((err) => {
+    const supportsFinger = resolvedCapabilities.includes("fingerprint");
+    assignEmployeesToDevice(device.id, supportsFinger).catch((err) => {
       console.error("[Devices] Failed to assign employees to device:", err);
     });
 
@@ -116,7 +136,7 @@ async function registerDeviceWithZK(device: {
 }
 
 // Assign all active employees to the new device
-async function assignEmployeesToDevice(deviceId: string) {
+async function assignEmployeesToDevice(deviceId: string, supportsFinger: boolean = true) {
   try {
     const employees = await db.employee.findMany({
       where: { isActive: true, fingerprintId: { not: null } },
@@ -140,6 +160,9 @@ async function assignEmployeesToDevice(deviceId: string) {
             employeeId: emp.id,
             fingerprintId: emp.fingerprintId,
             isUploaded: false,
+            hasFinger: supportsFinger,
+            hasFace: false,
+            hasPalm: false,
           },
         });
       }

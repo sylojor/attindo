@@ -20,10 +20,12 @@ import {
   Info,
   Users,
   Plug,
-  CheckCircle2,
-  XCircle,
-  Settings,
   Shield,
+  Fingerprint,
+  Eye,
+  Hand,
+  CreditCard,
+  ScanSearch,
 } from "lucide-react";
 import {
   Card,
@@ -84,17 +86,58 @@ import { format } from "date-fns";
 
 const MAX_DEVICES = 6;
 
+// Device type configuration with models and capabilities
+const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities: string[] }> = {
+  MB20: {
+    label: "ZKTeco MB20",
+    models: "MB20",
+    capabilities: ["fingerprint", "face", "palm", "card", "password"],
+  },
+  SpeedFace: {
+    label: "ZKTeco SpeedFace",
+    models: "SpeedFace-V4L/V5L",
+    capabilities: ["fingerprint", "face", "card"],
+  },
+  iFace: {
+    label: "ZKTeco iFace",
+    models: "iFace302/402",
+    capabilities: ["fingerprint", "face"],
+  },
+  ZKTeco: {
+    label: "ZKTeco (F/K-Series)",
+    models: "F18/F22/K14/K20/K40",
+    capabilities: ["fingerprint", "card", "password"],
+  },
+  inBio: {
+    label: "ZKTeco inBio",
+    models: "inBio160/260/460",
+    capabilities: ["fingerprint", "card", "password"],
+  },
+  ZK: {
+    label: "ZK Generic",
+    models: "T4-C/T5-C/Other",
+    capabilities: ["fingerprint", "card", "password"],
+  },
+};
+
 interface Device {
   id: string;
   name: string;
   ip: string;
   port: number;
   deviceType: string;
+  deviceModel: string | null;
   serialNumber: string | null;
   firmware: string | null;
   status: string;
   lastSyncAt: string | null;
   isActive: boolean;
+  capabilities: string;
+  fingerCount: number;
+  faceCount: number;
+  palmCount: number;
+  userCount: number;
+  logCount: number;
   _count: {
     attendanceLogs: number;
     syncLogs: number;
@@ -108,6 +151,11 @@ interface Device {
     userCount?: number;
     logCount?: number;
     deviceName?: string;
+    deviceModel?: string;
+    capabilities?: string[];
+    fingerCount?: number;
+    faceCount?: number;
+    palmCount?: number;
   } | null;
 }
 
@@ -134,6 +182,44 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
   error: { label: "Error", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: Radio },
 };
 
+// Capability icon mapping
+const capabilityIcons: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  fingerprint: { icon: Fingerprint, label: "Fingerprint", color: "text-blue-600 dark:text-blue-400" },
+  face: { icon: Eye, label: "Face", color: "text-violet-600 dark:text-violet-400" },
+  palm: { icon: Hand, label: "Palm", color: "text-orange-600 dark:text-orange-400" },
+  card: { icon: CreditCard, label: "Card", color: "text-teal-600 dark:text-teal-400" },
+  password: { icon: Shield, label: "Password", color: "text-slate-600 dark:text-slate-400" },
+};
+
+function CapabilitiesBadges({ capabilities, size = "xs" }: { capabilities: string | string[]; size?: "xs" | "sm" }) {
+  const caps = Array.isArray(capabilities) ? capabilities : capabilities.split(",").filter(Boolean);
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {caps.map((cap) => {
+        const config = capabilityIcons[cap.trim()];
+        if (!config) return null;
+        const Icon = config.icon;
+        return (
+          <TooltipProvider key={cap.trim()}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant="outline"
+                  className={`${size === "xs" ? "text-[9px] h-4 px-1" : "text-[10px] h-5 px-1.5"} gap-0.5`}
+                >
+                  <Icon className={`${size === "xs" ? "h-2.5 w-2.5" : "h-3 w-3"} ${config.color}`} />
+                  {size !== "xs" && config.label}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>{config.label}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DevicesView() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -147,6 +233,7 @@ export function DevicesView() {
   const [testingId, setTestingId] = useState<string | null>(null);
   const [restartingId, setRestartingId] = useState<string | null>(null);
   const [syncingTimeId, setSyncingTimeId] = useState<string | null>(null);
+  const [detectingId, setDetectingId] = useState<string | null>(null);
 
   // Queries
   const { data: devices = [], isLoading } = useQuery<Device[]>({
@@ -169,6 +256,9 @@ export function DevicesView() {
       deviceType: "ZKTeco",
     },
   });
+
+  // Watch deviceType to show capabilities
+  const watchedDeviceType = addForm.watch("deviceType");
 
   // Add mutation
   const addMutation = useMutation({
@@ -213,7 +303,7 @@ export function DevicesView() {
   });
 
   // Sync single device
-  const syncDevice = async (deviceId: string, deviceName: string) => {
+  const syncDeviceFn = async (deviceId: string, deviceName: string) => {
     setSyncingDevices((prev) => new Set(prev).add(deviceId));
     updateSyncProgress(deviceId, {
       deviceId,
@@ -235,7 +325,6 @@ export function DevicesView() {
         throw new Error("Sync failed");
       }
 
-      // Simulate progress updates while sync runs in background
       let progress = 0;
       const interval = setInterval(() => {
         progress += Math.random() * 15;
@@ -253,7 +342,6 @@ export function DevicesView() {
         });
       }, 800);
 
-      // Poll for completion
       const checkComplete = setInterval(async () => {
         const devRes = await fetch("/api/devices");
         if (devRes.ok) {
@@ -284,7 +372,6 @@ export function DevicesView() {
         }
       }, 3000);
 
-      // Timeout after 2 minutes
       setTimeout(() => {
         clearInterval(interval);
         clearInterval(checkComplete);
@@ -330,7 +417,7 @@ export function DevicesView() {
 
       for (const device of devices) {
         if (device.isActive) {
-          syncDevice(device.id, device.name);
+          syncDeviceFn(device.id, device.name);
         }
       }
     } catch (error) {
@@ -354,9 +441,10 @@ export function DevicesView() {
       const data = await res.json();
 
       if (data.success) {
+        const caps = data.info?.capabilities;
         toast({
           title: "Connection successful",
-          description: `${deviceName} is online${data.info?.serialNumber ? ` (S/N: ${data.info.serialNumber})` : ""}`,
+          description: `${deviceName} is online${data.info?.serialNumber ? ` (S/N: ${data.info.serialNumber})` : ""}${caps?.length ? ` — ${caps.join(", ")}` : ""}`,
         });
         queryClient.invalidateQueries({ queryKey: ["devices"] });
       } else {
@@ -366,14 +454,49 @@ export function DevicesView() {
           variant: "destructive",
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Connection error",
-        description: err.message,
+        description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
       setTestingId(null);
+    }
+  };
+
+  // Detect capabilities
+  const detectCapabilities = async (deviceId: string, deviceName: string) => {
+    setDetectingId(deviceId);
+    try {
+      const res = await fetch(`/api/devices/${deviceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "detect-capabilities" }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.capabilities) {
+        toast({
+          title: "Capabilities detected",
+          description: `${deviceName}: ${data.deviceModel || "Unknown model"} — ${data.capabilities.join(", ")}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["devices"] });
+      } else {
+        toast({
+          title: "Detection failed",
+          description: data.error || `Could not detect capabilities for ${deviceName}`,
+          variant: "destructive",
+        });
+      }
+    } catch (err: unknown) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to detect capabilities",
+        variant: "destructive",
+      });
+    } finally {
+      setDetectingId(null);
     }
   };
 
@@ -393,8 +516,8 @@ export function DevicesView() {
       } else {
         toast({ title: "Error", description: data.error || "Failed to restart", variant: "destructive" });
       }
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setRestartingId(null);
     }
@@ -415,8 +538,8 @@ export function DevicesView() {
       } else {
         toast({ title: "Error", description: data.error || "Failed to sync time", variant: "destructive" });
       }
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setSyncingTimeId(null);
     }
@@ -467,6 +590,26 @@ export function DevicesView() {
     fetchDeviceUsers(deviceId);
   };
 
+  // Get resolved capabilities for a device
+  const getDeviceCapabilities = (device: Device): string[] => {
+    const liveCaps = device.liveInfo?.capabilities;
+    if (liveCaps && liveCaps.length > 0) return liveCaps;
+    const caps = device.capabilities || DEVICE_TYPES[device.deviceType]?.capabilities?.join(",") || "fingerprint";
+    return caps.split(",").filter(Boolean);
+  };
+
+  // Get resolved model name
+  const getDeviceModelName = (device: Device): string => {
+    return device.liveInfo?.deviceModel || device.deviceModel || DEVICE_TYPES[device.deviceType]?.models || device.deviceType;
+  };
+
+  // Get biometric counts
+  const getBiometricCounts = (device: Device) => ({
+    fingers: device.liveInfo?.fingerCount ?? device.fingerCount ?? 0,
+    faces: device.liveInfo?.faceCount ?? device.faceCount ?? 0,
+    palms: device.liveInfo?.palmCount ?? device.palmCount ?? 0,
+  });
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -493,7 +636,7 @@ export function DevicesView() {
             ZKTeco Devices
           </h2>
           <p className="text-sm text-muted-foreground">
-            {devices.length}/{MAX_DEVICES} Devices &mdash; Official ZKTeco ZK Protocol Support
+            {devices.length}/{MAX_DEVICES} Devices &mdash; Official ZKTeco ZK Protocol Support (incl. MB20)
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -520,7 +663,7 @@ export function DevicesView() {
               <DialogHeader>
                 <DialogTitle>Add ZKTeco Device</DialogTitle>
                 <DialogDescription>
-                  Register a new ZKTeco fingerprint terminal. Make sure the device is on the same network and port 4370 is open.
+                  Register a new ZKTeco terminal. Make sure the device is on the same network and port 4370 is open.
                 </DialogDescription>
               </DialogHeader>
               <Form {...addForm}>
@@ -582,17 +725,27 @@ export function DevicesView() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="ZKTeco">ZKTeco (F18/F22/K-Series)</SelectItem>
-                            <SelectItem value="SpeedFace">ZKTeco SpeedFace</SelectItem>
-                            <SelectItem value="iFace">ZKTeco iFace</SelectItem>
-                            <SelectItem value="inBio">ZKTeco inBio</SelectItem>
-                            <SelectItem value="ZK">ZK Generic</SelectItem>
+                            {Object.entries(DEVICE_TYPES).map(([key, config]) => (
+                              <SelectItem key={key} value={key}>
+                                {config.label} ({config.models})
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  {/* Show capabilities preview */}
+                  {watchedDeviceType && DEVICE_TYPES[watchedDeviceType] && (
+                    <div className="rounded-md border p-3 bg-muted/30">
+                      <p className="text-xs font-medium mb-1.5">Supported Verification Modes:</p>
+                      <CapabilitiesBadges
+                        capabilities={DEVICE_TYPES[watchedDeviceType].capabilities}
+                        size="sm"
+                      />
+                    </div>
+                  )}
                   <DialogFooter>
                     <Button
                       type="button"
@@ -623,12 +776,16 @@ export function DevicesView() {
             <Shield className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="font-medium text-emerald-700 dark:text-emerald-400">
-                Official ZKTeco ZK Protocol Support
+                Official ZKTeco ZK Protocol Support — BioTime Replacement
               </p>
               <p className="text-muted-foreground text-xs mt-0.5">
-                Compatible with: F18, F22, F22-Pro, SpeedFace-V4L/V5L, iFace302/402, inBio160/260/460, K14/K20/K40, ZK T4-C/T5-C &mdash;
+                Compatible with: <strong>MB20</strong> (Multi-Biometric), F18, F22, F22-Pro, SpeedFace-V4L/V5L, iFace302/402, inBio160/260/460, K14/K20/K40, ZK T4-C/T5-C &mdash;
                 All devices using ZK TCP protocol on port 4370
               </p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-[10px] text-muted-foreground">Verification:</span>
+                <CapabilitiesBadges capabilities={["fingerprint", "face", "palm", "card", "password"]} size="xs" />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -640,7 +797,7 @@ export function DevicesView() {
           <Server className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="font-semibold mb-1">No devices yet</h3>
           <p className="text-sm text-muted-foreground">
-            Add a ZKTeco fingerprint terminal to start syncing attendance data
+            Add a ZKTeco terminal (MB20, F18, SpeedFace, etc.) to start syncing attendance data
           </p>
         </Card>
       ) : (
@@ -650,10 +807,13 @@ export function DevicesView() {
             const StatusIcon = config.icon;
             const deviceSync = syncProgress[device.id];
             const isSyncing = syncingDevices.has(device.id);
-            const liveInfo = device.liveInfo;
+            const caps = getDeviceCapabilities(device);
+            const modelName = getDeviceModelName(device);
+            const bioCounts = getBiometricCounts(device);
+            const isMB20 = device.deviceType === "MB20" || modelName.toUpperCase().includes("MB20");
 
             return (
-              <Card key={device.id} className="relative overflow-hidden">
+              <Card key={device.id} className={`relative overflow-hidden ${isMB20 ? "ring-1 ring-violet-200 dark:ring-violet-800/50" : ""}`}>
                 {/* Status bar */}
                 <div
                   className={`h-1 ${
@@ -669,20 +829,30 @@ export function DevicesView() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-sm">{device.name}</h3>
+                      <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                        {device.name}
+                        {isMB20 && (
+                          <Badge className="text-[8px] h-4 px-1 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 border-violet-200 dark:border-violet-800">
+                            MB20
+                          </Badge>
+                        )}
+                      </h3>
                       <p className="text-xs text-muted-foreground font-mono">
                         {device.ip}:{device.port}
                       </p>
-                      {liveInfo?.deviceName && (
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          {liveInfo.deviceName}
-                        </p>
-                      )}
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {modelName}
+                      </p>
                     </div>
                     <Badge className={`text-[10px] ${config.color}`}>
                       <StatusIcon className="h-3 w-3 mr-1" />
                       {config.label}
                     </Badge>
+                  </div>
+
+                  {/* Capabilities badges */}
+                  <div className="mb-2.5">
+                    <CapabilitiesBadges capabilities={caps} size="xs" />
                   </div>
 
                   {/* Sync progress */}
@@ -701,14 +871,10 @@ export function DevicesView() {
                   {/* Device Info Grid */}
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div>
-                      <span className="text-muted-foreground">Model</span>
-                      <p className="font-medium">{device.deviceType}</p>
-                    </div>
-                    <div>
                       <span className="text-muted-foreground">Employees</span>
                       <p className="font-medium">
-                        {liveInfo?.userCount ?? device._count.deviceEmployees}
-                        {liveInfo?.userCount !== undefined && (
+                        {(device.liveInfo?.userCount ?? device.userCount) || device._count.deviceEmployees}
+                        {((device.liveInfo?.userCount !== undefined) || device.userCount > 0) && (
                           <span className="text-muted-foreground"> on device</span>
                         )}
                       </p>
@@ -716,8 +882,8 @@ export function DevicesView() {
                     <div>
                       <span className="text-muted-foreground">Logs</span>
                       <p className="font-medium">
-                        {liveInfo?.logCount !== undefined ? liveInfo.logCount : device._count.attendanceLogs}
-                        {liveInfo?.logCount !== undefined && (
+                        {(device.liveInfo?.logCount ?? device.logCount) || device._count.attendanceLogs}
+                        {((device.liveInfo?.logCount !== undefined) || device.logCount > 0) && (
                           <span className="text-muted-foreground"> on device</span>
                         )}
                       </p>
@@ -730,19 +896,45 @@ export function DevicesView() {
                           : "Never"}
                       </p>
                     </div>
-                    {(device.serialNumber || liveInfo?.serialNumber) && (
+                    {/* Biometric counts for multi-bio devices */}
+                    {(bioCounts.fingers > 0 || bioCounts.faces > 0 || bioCounts.palms > 0) && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Biometric Templates</span>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {bioCounts.fingers > 0 && (
+                            <span className="flex items-center gap-1 text-[10px]">
+                              <Fingerprint className="h-3 w-3 text-blue-500" />
+                              {bioCounts.fingers}
+                            </span>
+                          )}
+                          {bioCounts.faces > 0 && (
+                            <span className="flex items-center gap-1 text-[10px]">
+                              <Eye className="h-3 w-3 text-violet-500" />
+                              {bioCounts.faces}
+                            </span>
+                          )}
+                          {bioCounts.palms > 0 && (
+                            <span className="flex items-center gap-1 text-[10px]">
+                              <Hand className="h-3 w-3 text-orange-500" />
+                              {bioCounts.palms}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {(device.serialNumber || device.liveInfo?.serialNumber) && (
                       <div className="col-span-2">
                         <span className="text-muted-foreground">Serial</span>
                         <p className="font-medium font-mono text-[10px]">
-                          {liveInfo?.serialNumber || device.serialNumber}
+                          {device.liveInfo?.serialNumber || device.serialNumber}
                         </p>
                       </div>
                     )}
-                    {(device.firmware || liveInfo?.firmware) && (
+                    {(device.firmware || device.liveInfo?.firmware) && (
                       <div className="col-span-2">
                         <span className="text-muted-foreground">Firmware</span>
                         <p className="font-medium text-[10px]">
-                          {liveInfo?.firmware || device.firmware}
+                          {device.liveInfo?.firmware || device.firmware}
                         </p>
                       </div>
                     )}
@@ -754,7 +946,7 @@ export function DevicesView() {
                       variant="outline"
                       size="sm"
                       className="flex-1 gap-1.5 text-xs h-8"
-                      onClick={() => syncDevice(device.id, device.name)}
+                      onClick={() => syncDeviceFn(device.id, device.name)}
                       disabled={isSyncing}
                     >
                       {isSyncing ? (
@@ -817,7 +1009,28 @@ export function DevicesView() {
                   </div>
 
                   {/* Advanced actions row */}
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => detectCapabilities(device.id, device.name)}
+                            disabled={detectingId === device.id}
+                          >
+                            {detectingId === device.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <ScanSearch className="h-3 w-3" />
+                            )}
+                            Detect
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Auto-detect device model and capabilities</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -857,7 +1070,7 @@ export function DevicesView() {
                             Restart
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Restart fingerprint terminal</TooltipContent>
+                        <TooltipContent>Restart terminal</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -877,26 +1090,44 @@ export function DevicesView() {
               Device Details & Users
             </DialogTitle>
             <DialogDescription>
-              View device information and manage users on the fingerprint terminal
+              View device information and manage users on the terminal
             </DialogDescription>
           </DialogHeader>
 
           {deviceDetailId && (() => {
             const dev = devices.find((d) => d.id === deviceDetailId);
             if (!dev) return null;
+            const caps = getDeviceCapabilities(dev);
+            const modelName = getDeviceModelName(dev);
+            const bioCounts = getBiometricCounts(dev);
 
             return (
               <div className="space-y-4">
                 {/* Device Info */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">{dev.name}</CardTitle>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      {dev.name}
+                      {dev.deviceType === "MB20" && (
+                        <Badge className="text-[8px] h-4 px-1 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                          MB20
+                        </Badge>
+                      )}
+                    </CardTitle>
                     <CardDescription className="font-mono">{dev.ip}:{dev.port}</CardDescription>
                   </CardHeader>
                   <CardContent className="text-xs space-y-1.5">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Model</span>
+                      <span className="font-medium">{modelName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Type</span>
                       <span className="font-medium">{dev.deviceType}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Capabilities</span>
+                      <CapabilitiesBadges capabilities={caps} size="sm" />
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Status</span>
@@ -921,6 +1152,37 @@ export function DevicesView() {
                       <span className="font-medium">{dev.lastSyncAt ? format(new Date(dev.lastSyncAt), "yyyy-MM-dd HH:mm") : "Never"}</span>
                     </div>
                     <Separator className="my-2" />
+                    {/* Biometric Template Counts */}
+                    {(bioCounts.fingers > 0 || bioCounts.faces > 0 || bioCounts.palms > 0) && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Fingerprints</span>
+                          <span className="font-medium flex items-center gap-1">
+                            <Fingerprint className="h-3 w-3 text-blue-500" />
+                            {bioCounts.fingers}
+                          </span>
+                        </div>
+                        {bioCounts.faces > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Face Templates</span>
+                            <span className="font-medium flex items-center gap-1">
+                              <Eye className="h-3 w-3 text-violet-500" />
+                              {bioCounts.faces}
+                            </span>
+                          </div>
+                        )}
+                        {bioCounts.palms > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Palm Templates</span>
+                            <span className="font-medium flex items-center gap-1">
+                              <Hand className="h-3 w-3 text-orange-500" />
+                              {bioCounts.palms}
+                            </span>
+                          </div>
+                        )}
+                        <Separator className="my-2" />
+                      </>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Attendance Logs</span>
                       <span className="font-medium">{dev._count.attendanceLogs}</span>

@@ -1,16 +1,17 @@
 /**
- * Attindo ZKTeco Sync Service v2.0
+ * Attindo ZKTeco Sync Service v2.1
  * 
- * Official ZKTeco/ZK fingerprint device communication service.
+ * Official ZKTeco/ZK multi-biometric device communication service.
  * Uses node-zklib for real TCP communication on port 4370.
  * 
  * Supported Devices:
- * - ZKTeco F18, F22, F22-Pro
- * - ZKTeco SpeedFace-V4L, SpeedFace-V5L
- * - ZKTeco iFace302, iFace402
- * - ZKTeco inBio160, inBio260, inBio460
- * - ZKTeco K14, K20, K40
- * - ZK T4-C, T5-C
+ * - ZKTeco MB20 (Multi-Biometric: Fingerprint + Face + Palm + Card + Password)
+ * - ZKTeco SpeedFace-V4L, SpeedFace-V5L (Fingerprint + Face + Card)
+ * - ZKTeco iFace302, iFace402 (Fingerprint + Face)
+ * - ZKTeco F18, F22, F22-Pro (Fingerprint)
+ * - ZKTeco inBio160, inBio260, inBio460 (Fingerprint)
+ * - ZKTeco K14, K20, K40 (Fingerprint)
+ * - ZK T4-C, T5-C (Fingerprint)
  * - And all ZKTeco devices using the ZK communication protocol (port 4370)
  * 
  * BioTime Replacement Features:
@@ -18,6 +19,9 @@
  * - Attendance log download (with auto-clear)
  * - Employee upload/delete on device
  * - Device info reading (serial, firmware, users, logs count)
+ * - Multi-biometric capability auto-detection (fingerprint, face, palm, card, password)
+ * - Biometric template count reporting (finger, face, palm)
+ * - MB20 verify mode categorization (face vs fingerprint vs palm vs card vs password)
  * - Device restart
  * - Time synchronization
  * - Live attendance monitoring via Socket.io
@@ -50,12 +54,18 @@ interface ZKDevice {
   userCount?: number;
   logCount?: number;
   deviceName?: string;
+  deviceModel?: string;
+  capabilities?: string[];
+  fingerCount?: number;
+  faceCount?: number;
+  palmCount?: number;
 }
 
 interface AttendanceRecord {
   userId: number;
   timestamp: string;
   verifyMode: number;
+  verifyModeLabel: string;
   ioMode: number;
   workCode: number;
 }
@@ -78,6 +88,133 @@ interface DeviceInfo {
   ip: string;
   port: number;
   macAddress: string | null;
+  capabilities: string[];
+  fingerCount: number;
+  faceCount: number;
+  palmCount: number;
+  deviceModel: string;
+}
+
+// ─── Device Capability Detection ───
+
+/**
+ * Detect device capabilities based on the device name/model.
+ * Maps ZKTeco model names to their supported biometric modalities.
+ */
+function detectDeviceCapabilities(deviceName: string | null): { model: string; capabilities: string[] } {
+  if (!deviceName) return { model: "Unknown", capabilities: ["fingerprint"] };
+
+  const name = deviceName.toUpperCase();
+
+  // MB20 series - full multi-biometric
+  if (name.includes("MB20") || name.includes("MB-20")) {
+    return { model: "MB20", capabilities: ["fingerprint", "face", "palm", "card", "password"] };
+  }
+
+  // SpeedFace series - fingerprint + face + card
+  if (name.includes("SPEEDFACE") || name.includes("SF-") || name.includes("speedface")) {
+    return { model: "SpeedFace", capabilities: ["fingerprint", "face", "card"] };
+  }
+
+  // iFace series - fingerprint + face
+  if (name.includes("IFACE") || name.includes("I-FACE")) {
+    return { model: "iFace", capabilities: ["fingerprint", "face"] };
+  }
+
+  // FaceDepot series - face only
+  if (name.includes("FACEDEPOT") || name.includes("FACE-DEPOT")) {
+    return { model: "FaceDepot", capabilities: ["face", "card", "password"] };
+  }
+
+  // SpeedFace-V4L / V5L - some models support palm
+  if (name.includes("V4L") || name.includes("V5L")) {
+    return { model: "SpeedFace-V", capabilities: ["fingerprint", "face", "card"] };
+  }
+
+  // inBio series - fingerprint + card
+  if (name.includes("INBIO")) {
+    return { model: "inBio", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // F-series - fingerprint only
+  if (name.includes("F18") || name.includes("F22") || name.includes("F16")) {
+    return { model: "F-Series", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // K-series - fingerprint only
+  if (name.includes("K14") || name.includes("K20") || name.includes("K40")) {
+    return { model: "K-Series", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // Default: assume basic fingerprint support
+  return { model: "ZKTeco", capabilities: ["fingerprint", "card", "password"] };
+}
+
+/**
+ * Map ZK verify mode number to a human-readable label.
+ * 
+ * Verify mode mapping for MB20 and other multi-biometric devices:
+ *   0 = Fingerprint
+ *   1 = Fingerprint (duplicate/second scan)
+ *   2 = Card
+ *   3 = Password
+ *   4 = Face
+ *   5 = Palm
+ *   6 = Iris
+ *   7 = Vein
+ *   8 = Face+Password
+ *   9 = Palm+Password
+ *  10 = Fingerprint+Password
+ *  11 = Face+Fingerprint
+ *  12 = Card+Password
+ *  13 = Fingerprint+Card
+ *  14 = Face+Card
+ *  15 = Palm+Card
+ *  16 = Face+Palm
+ * 128+ = Multi-mode combinations (device-specific)
+ */
+function mapVerifyMode(verifyMode: number, capabilities?: string[]): string {
+  switch (verifyMode) {
+    case 0:
+    case 1:
+      return "Fingerprint";
+    case 2:
+      return "Card";
+    case 3:
+      return "Password";
+    case 4:
+      return "Face";
+    case 5:
+      return "Palm";
+    case 6:
+      return "Iris";
+    case 7:
+      return "Vein";
+    case 8:
+      return "Face+Password";
+    case 9:
+      return "Palm+Password";
+    case 10:
+      return "Fingerprint+Password";
+    case 11:
+      return "Face+Fingerprint";
+    case 12:
+      return "Card+Password";
+    case 13:
+      return "Fingerprint+Card";
+    case 14:
+      return "Face+Card";
+    case 15:
+      return "Palm+Card";
+    case 16:
+      return "Face+Palm";
+    default:
+      // Multi-mode or unknown
+      if (verifyMode >= 128) {
+        return "Multi-Mode";
+      }
+      return `Unknown (${verifyMode})`;
+  }
 }
 
 // ─── Device State Management ───
@@ -95,7 +232,8 @@ function createZKInstance(ip: string, port: number = DEFAULT_ZK_PORT): any {
 }
 
 /**
- * Connect to a ZKTeco device and read its info
+ * Connect to a ZKTeco device and read its info, including
+ * multi-biometric capability detection and template counts.
  */
 async function connectAndReadInfo(device: ZKDevice): Promise<DeviceInfo> {
   const zk = createZKInstance(device.ip, device.port);
@@ -110,17 +248,51 @@ async function connectAndReadInfo(device: ZKDevice): Promise<DeviceInfo> {
       zk.getDeviceName().catch(() => null),
     ]);
 
+    const resolvedDeviceName = deviceName.status === "fulfilled" ? deviceName.value : null;
+
+    // Detect device model and capabilities from device name
+    const { model: deviceModel, capabilities } = detectDeviceCapabilities(resolvedDeviceName);
+
     // Read counts
     let userCount = 0;
     let logCount = 0;
+    let fingerCount = 0;
     try {
       const countInfo = await zk.getCountById();
       if (countInfo) {
         userCount = countInfo.userCounts || 0;
         logCount = countInfo.logCounts || 0;
+        // node-zklib may return fingerCount in some device models
+        fingerCount = countInfo.fingerCount || countInfo.fingerCounts || 0;
       }
     } catch {
       // Some devices don't support getCountById
+    }
+
+    // Face and palm template counts
+    // Note: node-zklib does not directly support reading face/palm template counts.
+    // These may be available via extended ZK commands but not in the standard library.
+    // We attempt to read them gracefully and fallback to 0.
+    let faceCount = 0;
+    let palmCount = 0;
+
+    // Try reading face count - some advanced ZK devices support this via extended commands
+    try {
+      // Attempt to get face template count via the count structure
+      const extendedCount = await zk.getCountById();
+      if (extendedCount) {
+        faceCount = extendedCount.faceCount || extendedCount.faceCounts || 0;
+        palmCount = extendedCount.palmCount || extendedCount.palmCounts || 0;
+      }
+    } catch {
+      // Face/palm count not supported by this device or library
+    }
+
+    // If fingerCount is still 0 but we have userCount, estimate finger templates
+    // (most fingerprint-only devices register 1-2 fingers per user)
+    if (fingerCount === 0 && userCount > 0) {
+      // We can't reliably estimate, so leave as 0
+      fingerCount = 0;
     }
 
     // Get MAC address
@@ -135,20 +307,30 @@ async function connectAndReadInfo(device: ZKDevice): Promise<DeviceInfo> {
     const info: DeviceInfo = {
       serialNumber: serialNumber.status === "fulfilled" ? serialNumber.value : null,
       firmware: firmware.status === "fulfilled" ? firmware.value : null,
-      deviceName: deviceName.status === "fulfilled" ? deviceName.value : null,
+      deviceName: resolvedDeviceName,
       userCount,
       logCount,
       ip: device.ip,
       port: device.port,
       macAddress,
+      capabilities,
+      fingerCount,
+      faceCount,
+      palmCount,
+      deviceModel,
     };
 
-    // Update device info
+    // Update device info with all detected fields
     device.serialNumber = info.serialNumber || undefined;
     device.firmware = info.firmware || undefined;
     device.deviceName = info.deviceName || undefined;
     device.userCount = info.userCount;
     device.logCount = info.logCount;
+    device.deviceModel = info.deviceModel;
+    device.capabilities = info.capabilities;
+    device.fingerCount = info.fingerCount;
+    device.faceCount = info.faceCount;
+    device.palmCount = info.palmCount;
 
     await zk.disconnect();
     return info;
@@ -245,13 +427,18 @@ async function downloadAttendanceLogs(
     await zk.disconnect();
 
     // Convert ZKLib attendance format to our format
-    const records: AttendanceRecord[] = attendanceData.map((log: any) => ({
-      userId: log.deviceUserId ? parseInt(log.deviceUserId) : (log.uid || 0),
-      timestamp: log.recordTime ? new Date(log.recordTime).toISOString() : new Date().toISOString(),
-      verifyMode: log.verifyType || 0,
-      ioMode: log.ip?.ioMode || (log.inOutStatus !== undefined ? log.inOutStatus : 0),
-      workCode: 0,
-    }));
+    // Enhanced with verify mode labels for MB20 multi-biometric support
+    const records: AttendanceRecord[] = attendanceData.map((log: any) => {
+      const verifyMode = log.verifyType || 0;
+      return {
+        userId: log.deviceUserId ? parseInt(log.deviceUserId) : (log.uid || 0),
+        timestamp: log.recordTime ? new Date(log.recordTime).toISOString() : new Date().toISOString(),
+        verifyMode,
+        verifyModeLabel: mapVerifyMode(verifyMode, device.capabilities),
+        ioMode: log.ip?.ioMode || (log.inOutStatus !== undefined ? log.inOutStatus : 0),
+        workCode: 0,
+      };
+    });
 
     return records;
   } catch (error: any) {
@@ -421,7 +608,7 @@ async function syncDevice(
     device.status = "syncing";
     io.emit("device:status", { deviceId: device.id, status: "syncing" });
 
-    // Test connection first
+    // Test connection first (also detects capabilities)
     const connResult = await testConnection(device);
     if (!connResult.success) {
       throw new Error(connResult.error || `Failed to connect to ${device.name}`);
@@ -431,12 +618,15 @@ async function syncDevice(
       deviceId: device.id,
       phase: "connecting",
       progress: 10,
-      message: `Connected to ${device.name}${connResult.info?.serialNumber ? ` (S/N: ${connResult.info.serialNumber})` : ""}`,
+      message: `Connected to ${device.name}${connResult.info?.serialNumber ? ` (S/N: ${connResult.info.serialNumber})` : ""}${connResult.info?.deviceModel ? ` [${connResult.info.deviceModel}]` : ""}`,
     });
 
-    // Emit updated device info
+    // Emit updated device info (including capabilities and template counts)
     if (connResult.info) {
-      io.emit("device:info", { deviceId: device.id, info: connResult.info });
+      io.emit("device:info", {
+        deviceId: device.id,
+        info: connResult.info,
+      });
     }
 
     // Phase 2: Download attendance logs
@@ -468,12 +658,23 @@ async function syncDevice(
       recordsUploaded,
     });
 
-    io.emit("device:status", { deviceId: device.id, status: "online", lastSyncAt: device.lastSyncAt });
+    io.emit("device:status", {
+      deviceId: device.id,
+      status: "online",
+      lastSyncAt: device.lastSyncAt,
+      deviceModel: device.deviceModel,
+      capabilities: device.capabilities,
+      fingerCount: device.fingerCount,
+      faceCount: device.faceCount,
+      palmCount: device.palmCount,
+    });
 
     // Emit attendance data for the main app to save
     io.emit("sync:attendance-data", {
       deviceId: device.id,
       records,
+      deviceModel: device.deviceModel,
+      capabilities: device.capabilities,
     });
 
     return { recordsFetched: records.length, recordsUploaded };
@@ -568,20 +769,48 @@ io.on("connection", (socket) => {
       socket.emit("device:test-result", {
         deviceId,
         success: result.success,
-        message: result.success ? "Connection successful" : (result.error || "Connection failed"),
+        message: result.success
+          ? `Connection successful${result.info?.deviceModel ? ` [${result.info.deviceModel}]` : ""}`
+          : (result.error || "Connection failed"),
         info: result.info,
         status: result.success ? "online" : "offline",
       });
 
       if (result.success) {
-        io.emit("device:status", { deviceId: device.id, status: "online" });
+        io.emit("device:status", {
+          deviceId: device.id,
+          status: "online",
+          deviceModel: device.deviceModel,
+          capabilities: device.capabilities,
+        });
         if (result.info) {
-          io.emit("device:info", { deviceId: device.id, info: result.info });
+          io.emit("device:info", {
+            deviceId: device.id,
+            info: result.info,
+          });
         }
       }
     } catch (error: any) {
       socket.emit("device:test-result", { deviceId, success: false, message: error.message });
     }
+  });
+
+  // Handle capability query
+  socket.on("device:capabilities", (deviceId: string) => {
+    const device = trackedDevices.get(deviceId);
+    if (!device) {
+      socket.emit("device:capabilities-result", { deviceId, error: "Device not found" });
+      return;
+    }
+
+    socket.emit("device:capabilities-result", {
+      deviceId,
+      deviceModel: device.deviceModel || "Unknown",
+      capabilities: device.capabilities || ["fingerprint"],
+      fingerCount: device.fingerCount || 0,
+      faceCount: device.faceCount || 0,
+      palmCount: device.palmCount || 0,
+    });
   });
 
   socket.on("disconnect", () => {
@@ -632,7 +861,15 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
   try {
     // GET /api/devices - List all tracked devices
     if (method === "GET" && path === "/api/devices") {
-      sendJson(res, 200, Array.from(trackedDevices.values()));
+      const devices = Array.from(trackedDevices.values()).map((d) => ({
+        ...d,
+        deviceModel: d.deviceModel || "Unknown",
+        capabilities: d.capabilities || ["fingerprint"],
+        fingerCount: d.fingerCount || 0,
+        faceCount: d.faceCount || 0,
+        palmCount: d.palmCount || 0,
+      }));
+      sendJson(res, 200, devices);
       return;
     }
 
@@ -646,13 +883,24 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
         port: body.port || DEFAULT_ZK_PORT,
         status: "offline",
         lastSyncAt: null,
+        deviceModel: body.deviceModel || undefined,
+        capabilities: body.capabilities || undefined,
       };
       trackedDevices.set(device.id, device);
 
-      // Try to connect immediately and get device info
+      // Try to connect immediately and get device info (including capability detection)
       testConnection(device).then((result) => {
         if (result.success && result.info) {
-          io.emit("device:info", { deviceId: device.id, info: result.info });
+          io.emit("device:info", {
+            deviceId: device.id,
+            info: result.info,
+          });
+          io.emit("device:status", {
+            deviceId: device.id,
+            status: "online",
+            deviceModel: device.deviceModel,
+            capabilities: device.capabilities,
+          });
         }
       }).catch(() => {});
 
@@ -669,6 +917,61 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
       } else {
         sendJson(res, 400, { error: "Device ID required" });
       }
+      return;
+    }
+
+    // GET /api/capabilities/:deviceId - Get device capabilities
+    if (method === "GET" && path.startsWith("/api/capabilities/")) {
+      const deviceId = path.split("/").pop();
+      if (!deviceId) {
+        sendJson(res, 400, { error: "Device ID required" });
+        return;
+      }
+
+      const device = trackedDevices.get(deviceId);
+      if (!device) {
+        sendJson(res, 404, { error: "Device not found" });
+        return;
+      }
+
+      // If we don't have capability info yet, try to detect it
+      if (!device.deviceModel || !device.capabilities || device.capabilities.length === 0) {
+        try {
+          const info = await connectAndReadInfo(device);
+          sendJson(res, 200, {
+            deviceId: device.id,
+            deviceModel: info.deviceModel,
+            capabilities: info.capabilities,
+            fingerCount: info.fingerCount,
+            faceCount: info.faceCount,
+            palmCount: info.palmCount,
+            lastDetected: new Date().toISOString(),
+          });
+        } catch (error: any) {
+          // Return what we know even if we can't connect
+          sendJson(res, 200, {
+            deviceId: device.id,
+            deviceModel: device.deviceName ? detectDeviceCapabilities(device.deviceName).model : "Unknown",
+            capabilities: device.deviceName ? detectDeviceCapabilities(device.deviceName).capabilities : ["fingerprint"],
+            fingerCount: device.fingerCount || 0,
+            faceCount: device.faceCount || 0,
+            palmCount: device.palmCount || 0,
+            lastDetected: null,
+            error: "Could not connect to device for live detection",
+          });
+        }
+        return;
+      }
+
+      sendJson(res, 200, {
+        deviceId: device.id,
+        deviceModel: device.deviceModel,
+        capabilities: device.capabilities,
+        fingerCount: device.fingerCount || 0,
+        faceCount: device.faceCount || 0,
+        palmCount: device.palmCount || 0,
+        lastDetected: device.lastSyncAt,
+      });
       return;
     }
 
@@ -707,6 +1010,8 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
         message: "Sync started in background",
         deviceId,
         status: "syncing",
+        deviceModel: device.deviceModel,
+        capabilities: device.capabilities,
       });
       return;
     }
@@ -755,7 +1060,9 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
           const result = await testConnection(testDev);
           sendJson(res, 200, {
             success: result.success,
-            message: result.success ? "Connection successful" : (result.error || "Connection failed"),
+            message: result.success
+              ? `Connection successful${result.info?.deviceModel ? ` [${result.info.deviceModel}]` : ""}`
+              : (result.error || "Connection failed"),
             info: result.info,
           });
           return;
@@ -767,14 +1074,24 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
       const result = await testConnection(device);
       sendJson(res, 200, {
         success: result.success,
-        message: result.success ? "Connection successful" : (result.error || "Connection failed"),
+        message: result.success
+          ? `Connection successful${result.info?.deviceModel ? ` [${result.info.deviceModel}]` : ""}`
+          : (result.error || "Connection failed"),
         info: result.info,
       });
 
       if (result.success) {
-        io.emit("device:status", { deviceId: device.id, status: "online" });
+        io.emit("device:status", {
+          deviceId: device.id,
+          status: "online",
+          deviceModel: device.deviceModel,
+          capabilities: device.capabilities,
+        });
         if (result.info) {
-          io.emit("device:info", { deviceId: device.id, info: result.info });
+          io.emit("device:info", {
+            deviceId: device.id,
+            info: result.info,
+          });
         }
       }
       return;
@@ -872,20 +1189,50 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
       return;
     }
 
+    // GET /api/verify-modes - Get the list of all supported verify modes
+    if (method === "GET" && path === "/api/verify-modes") {
+      sendJson(res, 200, {
+        description: "ZKTeco verify mode mapping for MB20 and multi-biometric devices",
+        modes: [
+          { code: 0, label: "Fingerprint" },
+          { code: 1, label: "Fingerprint (duplicate)" },
+          { code: 2, label: "Card" },
+          { code: 3, label: "Password" },
+          { code: 4, label: "Face" },
+          { code: 5, label: "Palm" },
+          { code: 6, label: "Iris" },
+          { code: 7, label: "Vein" },
+          { code: 8, label: "Face+Password" },
+          { code: 9, label: "Palm+Password" },
+          { code: 10, label: "Fingerprint+Password" },
+          { code: 11, label: "Face+Fingerprint" },
+          { code: 12, label: "Card+Password" },
+          { code: 13, label: "Fingerprint+Card" },
+          { code: 14, label: "Face+Card" },
+          { code: 15, label: "Palm+Card" },
+          { code: 16, label: "Face+Palm" },
+        ],
+        note: "Codes >= 128 are device-specific multi-mode combinations",
+      });
+      return;
+    }
+
     // GET /api/health - Health check
     if (method === "GET" && path === "/api/health") {
       sendJson(res, 200, {
         status: "ok",
-        version: "2.0.0",
+        version: "2.1.0",
         protocol: "ZKTeco TCP (port 4370)",
         devicesTracked: trackedDevices.size,
         supportedDevices: [
-          "ZKTeco F18/F22/F22-Pro",
-          "ZKTeco SpeedFace-V4L/V5L",
-          "ZKTeco iFace302/402",
-          "ZKTeco inBio160/260/460",
-          "ZKTeco K14/K20/K40",
-          "ZK T4-C/T5-C",
+          "ZKTeco MB20 (Multi-Biometric: Fingerprint + Face + Palm + Card + Password)",
+          "ZKTeco SpeedFace-V4L/V5L (Fingerprint + Face + Card)",
+          "ZKTeco iFace302/402 (Fingerprint + Face)",
+          "ZKTeco FaceDepot (Face + Card + Password)",
+          "ZKTeco F18/F22/F22-Pro (Fingerprint)",
+          "ZKTeco inBio160/260/460 (Fingerprint)",
+          "ZKTeco K14/K20/K40 (Fingerprint)",
+          "ZK T4-C/T5-C (Fingerprint)",
           "All ZKTeco devices with ZK protocol",
         ],
         features: [
@@ -893,11 +1240,17 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
           "Attendance log download with auto-clear",
           "Employee upload/delete on device",
           "Device info (serial, firmware, user count)",
+          "Multi-biometric capability auto-detection",
+          "MB20 support: fingerprint, face, palm, card, password",
+          "Biometric template count reporting (finger, face, palm)",
+          "MB20 verify mode categorization (face vs fingerprint vs palm)",
           "Device restart",
           "Time synchronization",
           "Live attendance monitoring via Socket.io",
           "Non-blocking sync architecture",
+          "Capability detection API endpoint",
         ],
+        capabilitiesNote: "Face/palm template upload/download is not supported by node-zklib directly. Future SDK integration planned for advanced biometric operations.",
       });
       return;
     }
@@ -932,10 +1285,18 @@ async function autoSync() {
         // First just test connection, don't full sync on startup
         const result = await testConnection(device);
         if (result.success) {
-          console.log(`[ZK-Sync] Auto-connect: ${device.name} is online`);
-          io.emit("device:status", { deviceId: device.id, status: "online" });
+          console.log(`[ZK-Sync] Auto-connect: ${device.name} is online [${device.deviceModel || "Unknown"}]`);
+          io.emit("device:status", {
+            deviceId: device.id,
+            status: "online",
+            deviceModel: device.deviceModel,
+            capabilities: device.capabilities,
+          });
           if (result.info) {
-            io.emit("device:info", { deviceId: device.id, info: result.info });
+            io.emit("device:info", {
+              deviceId: device.id,
+              info: result.info,
+            });
           }
         } else {
           console.log(`[ZK-Sync] Auto-connect: ${device.name} is offline`);
@@ -958,7 +1319,8 @@ httpServer.listen(PORT, () => {
   console.log("[ZK-Sync] Socket.io enabled for real-time sync updates");
   console.log("[ZK-Sync] REST API available at /api/*");
   console.log("[ZK-Sync] Key design: All sync operations are NON-BLOCKING");
-  console.log("[ZK-Sync] Supported: ZKTeco F18, F22, SpeedFace, iFace, inBio, K-series, and more");
+  console.log("[ZK-Sync] Multi-Biometric Support: MB20 (fingerprint+face+palm+card+password)");
+  console.log("[ZK-Sync] Supported: ZKTeco MB20, SpeedFace, iFace, F18, F22, inBio, K-series, and more");
 
   // Run auto-connect check after startup
   setTimeout(autoSync, 2000);

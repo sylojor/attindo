@@ -55,6 +55,11 @@ export async function GET(
             userCount: zkDevice.userCount,
             logCount: zkDevice.logCount,
             deviceName: zkDevice.deviceName,
+            deviceModel: zkDevice.deviceModel,
+            capabilities: zkDevice.capabilities,
+            fingerCount: zkDevice.fingerCount,
+            faceCount: zkDevice.faceCount,
+            palmCount: zkDevice.palmCount,
           };
         }
       }
@@ -78,7 +83,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const { name, ip, port, deviceType, serialNumber, firmware, status, isActive, action } = body;
+    const { name, ip, port, deviceType, deviceModel, capabilities, serialNumber, firmware, status, isActive, action } = body;
 
     const existing = await db.device.findUnique({ where: { id } });
     if (!existing) {
@@ -104,6 +109,14 @@ export async function PUT(
               status: "online",
               serialNumber: zkData.info.serialNumber || existing.serialNumber,
               firmware: zkData.info.firmware || existing.firmware,
+              // Update capabilities and counts from ZK service if available
+              ...(zkData.info.deviceModel && { deviceModel: zkData.info.deviceModel }),
+              ...(zkData.info.capabilities && { capabilities: zkData.info.capabilities }),
+              ...(zkData.info.fingerCount !== undefined && { fingerCount: zkData.info.fingerCount }),
+              ...(zkData.info.faceCount !== undefined && { faceCount: zkData.info.faceCount }),
+              ...(zkData.info.palmCount !== undefined && { palmCount: zkData.info.palmCount }),
+              ...(zkData.info.userCount !== undefined && { userCount: zkData.info.userCount }),
+              ...(zkData.info.logCount !== undefined && { logCount: zkData.info.logCount }),
             },
           });
         } else {
@@ -114,6 +127,81 @@ export async function PUT(
         }
 
         return NextResponse.json(zkData);
+      } catch (err: any) {
+        await db.device.update({ where: { id }, data: { status: "error" } });
+        return NextResponse.json(
+          { success: false, message: `ZK service error: ${err.message}` },
+          { status: 502 }
+        );
+      }
+    }
+
+    if (action === "detect-capabilities") {
+      try {
+        const zkRes = await fetch(`${ZK_SERVICE}/api/test-connection`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceId: id }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const zkData = await zkRes.json();
+
+        if (zkData.success && zkData.info) {
+          const detectedModel = zkData.info.deviceModel || existing.deviceModel;
+          const detectedCapabilities = zkData.info.capabilities || existing.capabilities;
+
+          // Update device with detected capabilities and model
+          await db.device.update({
+            where: { id },
+            data: {
+              status: "online",
+              serialNumber: zkData.info.serialNumber || existing.serialNumber,
+              firmware: zkData.info.firmware || existing.firmware,
+              ...(detectedModel && { deviceModel: detectedModel }),
+              ...(detectedCapabilities && { capabilities: detectedCapabilities }),
+              ...(zkData.info.fingerCount !== undefined && { fingerCount: zkData.info.fingerCount }),
+              ...(zkData.info.faceCount !== undefined && { faceCount: zkData.info.faceCount }),
+              ...(zkData.info.palmCount !== undefined && { palmCount: zkData.info.palmCount }),
+              ...(zkData.info.userCount !== undefined && { userCount: zkData.info.userCount }),
+              ...(zkData.info.logCount !== undefined && { logCount: zkData.info.logCount }),
+            },
+          });
+
+          // Update DeviceEmployee hasFinger flags based on detected capabilities
+          const supportsFinger = detectedCapabilities?.includes("fingerprint") ?? existing.capabilities.includes("fingerprint");
+          const supportsFace = detectedCapabilities?.includes("face") ?? existing.capabilities.includes("face");
+          const supportsPalm = detectedCapabilities?.includes("palm") ?? existing.capabilities.includes("palm");
+
+          await db.deviceEmployee.updateMany({
+            where: { deviceId: id },
+            data: {
+              hasFinger: supportsFinger,
+              hasFace: supportsFace,
+              hasPalm: supportsPalm,
+            },
+          });
+
+          return NextResponse.json({
+            success: true,
+            detected: {
+              deviceModel: detectedModel,
+              capabilities: detectedCapabilities,
+              fingerCount: zkData.info.fingerCount ?? 0,
+              faceCount: zkData.info.faceCount ?? 0,
+              palmCount: zkData.info.palmCount ?? 0,
+              userCount: zkData.info.userCount ?? 0,
+              logCount: zkData.info.logCount ?? 0,
+              serialNumber: zkData.info.serialNumber,
+              firmware: zkData.info.firmware,
+            },
+          });
+        } else {
+          await db.device.update({ where: { id }, data: { status: "offline" } });
+          return NextResponse.json(
+            { success: false, message: "Device is offline or unreachable" },
+            { status: 502 }
+          );
+        }
       } catch (err: any) {
         await db.device.update({ where: { id }, data: { status: "error" } });
         return NextResponse.json(
@@ -203,6 +291,8 @@ export async function PUT(
         ...(ip !== undefined && { ip }),
         ...(port !== undefined && { port }),
         ...(deviceType !== undefined && { deviceType }),
+        ...(deviceModel !== undefined && { deviceModel }),
+        ...(capabilities !== undefined && { capabilities }),
         ...(serialNumber !== undefined && { serialNumber }),
         ...(firmware !== undefined && { firmware }),
         ...(status !== undefined && { status }),
