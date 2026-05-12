@@ -220,6 +220,7 @@ function mapVerifyMode(verifyMode: number, capabilities?: string[]): string {
 // ─── Device State Management ───
 
 const trackedDevices: Map<string, ZKDevice> = new Map();
+const attendanceCache: Map<string, AttendanceRecord[]> = new Map();
 let isAutoSyncRunning = false;
 
 // ─── ZK Device Communication ───
@@ -669,6 +670,12 @@ async function syncDevice(
       palmCount: device.palmCount,
     });
 
+    // Store attendance records in cache for REST API retrieval
+    if (records.length > 0) {
+      attendanceCache.set(device.id, records);
+      console.log(`[ZK-Sync] Cached ${records.length} attendance records for device ${device.id}`);
+    }
+
     // Emit attendance data for the main app to save
     io.emit("sync:attendance-data", {
       deviceId: device.id,
@@ -972,6 +979,26 @@ async function handleRestApi(req: IncomingMessage, res: ServerResponse) {
         palmCount: device.palmCount || 0,
         lastDetected: device.lastSyncAt,
       });
+      return;
+    }
+
+    // GET /api/attendance/:deviceId - Get cached attendance records for a device
+    if (method === "GET" && path.startsWith("/api/attendance/")) {
+      const deviceId = path.split("/").pop();
+      if (!deviceId) {
+        sendJson(res, 400, { error: "Device ID required" });
+        return;
+      }
+
+      const records = attendanceCache.get(deviceId);
+      if (!records) {
+        sendJson(res, 200, []);
+        return;
+      }
+
+      // Return cached records and clear the cache for this device
+      attendanceCache.delete(deviceId);
+      sendJson(res, 200, records);
       return;
     }
 

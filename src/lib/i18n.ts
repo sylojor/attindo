@@ -120,6 +120,26 @@ export const translations: Record<Lang, Record<string, string>> = {
     "employees.shiftInfo": "معلومات الوردية",
     "employees.noShift": "لم يتم تعيين وردية",
     "employees.workingHours": "ساعات العمل",
+    "employees.fpRegistered": "مسجل ✓",
+    "employees.fpNotRegistered": "غير مسجل",
+
+    // ─── License ───
+    "license.title": "الترخيص",
+    "license.fingerprintSlots": "خانات البصمة",
+    "license.payrollStatus": "حالة ترخيص الرواتب",
+    "license.active": "نشط",
+    "license.inactive": "غير نشط",
+    "license.enterKey": "أدخل مفتاح الترخيص",
+    "license.activate": "تفعيل",
+    "license.activated": "تم تفعيل الترخيص",
+    "license.invalidKey": "مفتاح ترخيص غير صالح",
+    "license.fingerprintLimit": "حد البصمة",
+    "license.fingerprintLimitDesc": "تم الوصول للحد المجاني لعدد البصمات. قم بتفعيل ترخيص البصمة لإضافة المزيد.",
+    "license.payrollRequired": "ترخيص الرواتب مطلوب",
+    "license.payrollRequiredDesc": "وحدة الرواتب تتطلب ترخيص مدفوع. قم بتفعيل ترخيص الرواتب من الإعدادات.",
+    "license.free": "مجاني",
+    "license.paid": "مدفوع",
+    "license.unlimited": "غير محدود",
 
     // ─── Departments ───
     "departments.title": "الأقسام",
@@ -495,6 +515,21 @@ export const translations: Record<Lang, Record<string, string>> = {
     "settings.companyNameAr": "اسم الشركة (عربي)",
     "settings.saved": "تم حفظ الإعدادات",
 
+    // ─── Backup & Restore ───
+    "backup.title": "النسخ الاحتياطي والاستعادة",
+    "backup.description": "إنشاء نسخة احتياطية من قاعدة البيانات أو استعادتها من ملف",
+    "backup.create": "إنشاء نسخة احتياطية",
+    "backup.restore": "استعادة من نسخة احتياطية",
+    "backup.restoreWarning": "تحذير: ستتم استبدال جميع البيانات الحالية!",
+    "backup.creating": "جارٍ إنشاء النسخة الاحتياطية...",
+    "backup.restoring": "جارٍ الاستعادة...",
+    "backup.created": "تم إنشاء النسخة الاحتياطية بنجاح",
+    "backup.restored": "تمت استعادة البيانات بنجاح",
+    "backup.selectFile": "اختر ملف النسخة الاحتياطية",
+    "backup.confirmRestore": "تأكيد الاستعادة",
+    "backup.confirmRestoreDesc": "سيتم حذف جميع البيانات الحالية واستبدالها ببيانات النسخة الاحتياطية. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟",
+    "backup.lastBackup": "آخر نسخة احتياطية",
+
     // ─── Common ───
     "common.cancel": "إلغاء",
     "common.delete": "حذف",
@@ -630,6 +665,26 @@ export const translations: Record<Lang, Record<string, string>> = {
     "employees.shiftInfo": "Shift Info",
     "employees.noShift": "No shift assigned",
     "employees.workingHours": "Working Hours",
+    "employees.fpRegistered": "Registered ✓",
+    "employees.fpNotRegistered": "Not Registered",
+
+    // ─── License ───
+    "license.title": "License",
+    "license.fingerprintSlots": "Fingerprint Slots",
+    "license.payrollStatus": "Payroll License Status",
+    "license.active": "Active",
+    "license.inactive": "Inactive",
+    "license.enterKey": "Enter License Key",
+    "license.activate": "Activate",
+    "license.activated": "License Activated",
+    "license.invalidKey": "Invalid license key",
+    "license.fingerprintLimit": "Fingerprint Limit",
+    "license.fingerprintLimitDesc": "Free fingerprint limit reached. Activate a fingerprint license to add more employees with fingerprint IDs.",
+    "license.payrollRequired": "Payroll License Required",
+    "license.payrollRequiredDesc": "The payroll module requires a paid license to use. Activate a payroll license in Settings.",
+    "license.free": "Free",
+    "license.paid": "Paid",
+    "license.unlimited": "Unlimited",
 
     // ─── Departments ───
     "departments.title": "Departments",
@@ -1004,6 +1059,21 @@ export const translations: Record<Lang, Record<string, string>> = {
     "settings.companyName": "Company Name (EN)",
     "settings.companyNameAr": "Company Name (AR)",
     "settings.saved": "Settings saved",
+
+    // ─── Backup & Restore ───
+    "backup.title": "Backup & Restore",
+    "backup.description": "Create a database backup or restore from a backup file",
+    "backup.create": "Create Backup",
+    "backup.restore": "Restore from Backup",
+    "backup.restoreWarning": "Warning: All existing data will be replaced!",
+    "backup.creating": "Creating backup...",
+    "backup.restoring": "Restoring...",
+    "backup.created": "Backup created successfully",
+    "backup.restored": "Data restored successfully",
+    "backup.selectFile": "Select backup file",
+    "backup.confirmRestore": "Confirm Restore",
+    "backup.confirmRestoreDesc": "All current data will be deleted and replaced with the backup data. This action cannot be undone. Are you sure?",
+    "backup.lastBackup": "Last backup",
 
     // ─── Common ───
     "common.cancel": "Cancel",

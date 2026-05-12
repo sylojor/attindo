@@ -257,8 +257,8 @@ export function ShiftsView() {
   const addScheduleForm = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleSchema),
     defaultValues: {
-      employeeId: "",
-      shiftId: "",
+      employeeId: undefined,
+      shiftId: undefined,
       effectiveDate: format(new Date(), "yyyy-MM-dd"),
       dayOfWeek: "all",
       isOffDay: false,
@@ -728,7 +728,7 @@ export function ShiftsView() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t("shifts.employee")} *</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder={t("shifts.employee")} />
@@ -752,7 +752,7 @@ export function ShiftsView() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t("shifts.shift")} *</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder={t("shifts.shift")} />

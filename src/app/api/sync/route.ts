@@ -165,20 +165,41 @@ async function performDeviceSync(deviceId: string, syncLogId: string) {
     }
 
     // Wait for sync to complete - poll with timeout (max 30 seconds)
+    let syncCompleted = false;
     if (zkSyncStarted) {
       const pollStart = Date.now();
       while (Date.now() - pollStart < 30000) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        const dev = await db.device.findUnique({ where: { id: deviceId } });
-        if (dev && dev.status !== "syncing") break;
+        // Check ZK service for device status
+        try {
+          const devCheckRes = await fetch(`${ZK_SERVICE_URL}/api/devices`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (devCheckRes.ok) {
+            const zkDevices: any[] = await devCheckRes.json();
+            const zkDevice = zkDevices.find((d: any) => d.id === deviceId);
+            if (zkDevice && zkDevice.status !== "syncing") {
+              syncCompleted = zkDevice.status === "online";
+              break;
+            }
+          }
+        } catch {
+          // ZK service check failed, fall back to DB check
+          const dev = await db.device.findUnique({ where: { id: deviceId } });
+          if (dev && dev.status !== "syncing") break;
+        }
       }
     }
 
-    // Mark employees as uploaded
-    await db.deviceEmployee.updateMany({
-      where: { deviceId, isUploaded: false },
-      data: { isUploaded: true, lastSyncAt: new Date() },
-    });
+    // Only mark employees as uploaded if ZK service confirmed sync success
+    if (syncCompleted) {
+      await db.deviceEmployee.updateMany({
+        where: { deviceId, isUploaded: false },
+        data: { isUploaded: true, lastSyncAt: new Date() },
+      });
+    } else {
+      console.warn(`[Sync] Device ${deviceId} sync did not complete successfully, employees NOT marked as uploaded`);
+    }
 
     // Try to fetch and save attendance data
     try {

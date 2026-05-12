@@ -20,6 +20,7 @@ import {
   Loader2,
   Download,
   Eye,
+  Lock,
 } from "lucide-react";
 import {
   Card,
@@ -634,6 +635,47 @@ function LoansTab() {
   );
 }
 
+// ─── Payroll License Guard ───
+function PayrollLicenseGuard() {
+  const { t } = useTranslation();
+  const { data: licenseStatus, isLoading } = useQuery<{
+    payroll: { licensed: boolean };
+  }>({
+    queryKey: ["license-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/license");
+      if (!res.ok) return { payroll: { licensed: false } };
+      return res.json();
+    },
+    staleTime: 30000,
+  });
+
+  if (isLoading) return null;
+
+  if (licenseStatus?.payroll?.licensed) return null;
+
+  return (
+    <Card className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20">
+      <CardContent className="p-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="rounded-full bg-amber-100 dark:bg-amber-900/40 p-3">
+            <Lock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300">
+            {t("license.payrollRequired")}
+          </h3>
+          <p className="text-sm text-amber-700 dark:text-amber-400 max-w-md">
+            {t("license.payrollRequiredDesc")}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t("license.enterKey")} → {t("nav.settings")}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Component ───
 export function PayrollView() {
   const queryClient = useQueryClient();
@@ -1182,6 +1224,9 @@ export function PayrollView() {
         <Banknote className="h-5 w-5 text-emerald-600" />
         <h1 className="text-xl font-bold">{t("payroll.title")}</h1>
       </div>
+
+      {/* Payroll License Check */}
+      <PayrollLicenseGuard />
 
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
         <TabsList className="flex-wrap h-auto gap-1">

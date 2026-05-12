@@ -11,6 +11,15 @@ export async function PUT(
     const body = await request.json();
     const { name, nameAr, manager } = body;
 
+    // Check if department exists
+    const existing = await db.department.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Department not found" },
+        { status: 404 }
+      );
+    }
+
     const department = await db.department.update({
       where: { id },
       data: {

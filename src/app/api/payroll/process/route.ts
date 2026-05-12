@@ -4,6 +4,24 @@ import { db } from "@/lib/db";
 // POST /api/payroll/process - Process payroll for a period
 export async function POST(request: NextRequest) {
   try {
+    // License check: payroll requires a paid license
+    const payrollLicense = await db.license.findFirst({
+      where: {
+        isActive: true,
+        type: { in: ["payroll", "full"] },
+      },
+    });
+
+    if (!payrollLicense) {
+      return NextResponse.json(
+        {
+          error: "Payroll module requires an active license. Please activate a payroll license in Settings.",
+          code: "PAYROLL_LICENSE_REQUIRED",
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { payrollPeriodId } = body;
 
@@ -144,11 +162,7 @@ export async function POST(request: NextRequest) {
         // Loan deductions: sum of monthlyDeduction from active loans
         let loanDeduction = 0;
         for (const loan of employee.loans) {
-          loanDeduction += loan.monthlyDeduction;
-          // Don't deduct more than remaining balance
-          if (loanDeduction > loan.remainingBalance) {
-            loanDeduction = loan.remainingBalance;
-          }
+          loanDeduction += Math.min(loan.monthlyDeduction, loan.remainingBalance);
         }
 
         const totalDeductionsAmount = lateDeductions + absentDeductions + customDeductions;

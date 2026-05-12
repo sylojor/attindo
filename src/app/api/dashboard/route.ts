@@ -157,6 +157,19 @@ export async function GET() {
       count: d._count.employees,
     }));
 
+    // Check ZK service health with 3-second timeout
+    let zkServiceStatus = "offline";
+    try {
+      const zkHealthRes = await fetch("http://127.0.0.1:3003/api/health", {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (zkHealthRes.ok) {
+        zkServiceStatus = "online";
+      }
+    } catch {
+      zkServiceStatus = "offline";
+    }
+
     return NextResponse.json({
       totalEmployees,
       totalDevices,
@@ -167,7 +180,7 @@ export async function GET() {
       recentSyncLogs,
       chartData,
       departments,
-      zkServiceStatus: "online", // ZK service is running
+      zkServiceStatus,
       supportedProtocol: "ZKTeco ZK TCP (port 4370)",
     });
   } catch (error: unknown) {

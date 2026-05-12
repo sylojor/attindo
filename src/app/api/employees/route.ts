@@ -124,6 +124,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // License check: fingerprint limit
+    if (assignedFingerprintId !== null && assignedFingerprintId !== undefined) {
+      const FREE_FINGERPRINT_LIMIT = 4;
+      const employeesWithFingerprints = await db.employee.count({
+        where: { fingerprintId: { not: null } },
+      });
+
+      if (employeesWithFingerprints >= FREE_FINGERPRINT_LIMIT) {
+        // Check if there's an active fingerprint license
+        const fingerprintLicense = await db.license.findFirst({
+          where: {
+            isActive: true,
+            type: { in: ["fingerprint", "full"] },
+          },
+        });
+
+        if (!fingerprintLicense) {
+          return NextResponse.json(
+            {
+              error: `Free fingerprint limit (${FREE_FINGERPRINT_LIMIT}) reached. Activate a fingerprint license to add more employees with fingerprint IDs.`,
+              code: "FINGERPRINT_LICENSE_REQUIRED",
+            },
+            { status: 403 }
+          );
+        }
+
+        // Check if license has a max limit
+        if (
+          fingerprintLicense.maxFingerprints !== null &&
+          employeesWithFingerprints >= fingerprintLicense.maxFingerprints
+        ) {
+          return NextResponse.json(
+            {
+              error: `Fingerprint license limit (${fingerprintLicense.maxFingerprints}) reached.`,
+              code: "FINGERPRINT_LICENSE_LIMIT",
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     const employee = await db.employee.create({
       data: {
         employeeId,

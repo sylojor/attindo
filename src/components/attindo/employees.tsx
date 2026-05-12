@@ -225,12 +225,12 @@ const employeeSchema = z.object({
   employeeId: z.string().min(1, "Employee ID is required"),
   name: z.string().min(1, "Name is required"),
   nameAr: z.string().optional().default(""),
-  departmentId: z.string().optional().default(""),
+  departmentId: z.string().optional(),
   position: z.string().optional().default(""),
   phone: z.string().optional().default(""),
   email: z.string().optional().default(""),
   fingerprintId: z.coerce.number().optional().nullable(),
-  shiftId: z.string().optional().default(""),
+  shiftId: z.string().optional(),
 });
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
@@ -247,6 +247,17 @@ function EmployeeProfileDialog({
 }) {
   const { t } = useTranslation();
   const formatAmt = useFormatCurrency();
+
+  // Fetch fingerprint registration status for this dialog
+  const { data: fingerprintStatus } = useQuery<{ registeredIds: number[]; deviceCount: number }>({
+    queryKey: ["fingerprint-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/fingerprint-status");
+      if (!res.ok) return { registeredIds: [], deviceCount: 0 };
+      return res.json();
+    },
+    staleTime: 30000,
+  });
 
   const { data: profile, isLoading } = useQuery<EmployeeProfile>({
     queryKey: ["employee-profile", employeeId],
@@ -296,7 +307,29 @@ function EmployeeProfileDialog({
               <InfoRow icon={<User className="h-3.5 w-3.5" />} label={t("employees.name")} value={emp.name} />
               <InfoRow icon={<User className="h-3.5 w-3.5" />} label={t("employees.nameAr")} value={emp.nameAr || "—"} dir="rtl" />
               <InfoRow icon={<Briefcase className="h-3.5 w-3.5" />} label={t("employees.empId")} value={emp.employeeId} mono />
-              <InfoRow icon={<Fingerprint className="h-3.5 w-3.5" />} label={t("employees.fingerprintId")} value={emp.fingerprintId != null ? String(emp.fingerprintId) : "—"} mono />
+              <InfoRow
+                icon={<Fingerprint className="h-3.5 w-3.5" />}
+                label={t("employees.fingerprintId")}
+                value={
+                  emp.fingerprintId != null ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-mono">{emp.fingerprintId}</span>
+                      {(fingerprintStatus?.registeredIds ?? []).includes(emp.fingerprintId) ? (
+                        <Badge className="text-[10px] px-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          {t("employees.fpRegistered")}
+                        </Badge>
+                      ) : (
+                        <Badge className="text-[10px] px-1.5 bg-muted text-muted-foreground">
+                          {t("employees.fpNotRegistered")}
+                        </Badge>
+                      )}
+                    </span>
+                  ) : (
+                    "—"
+                  )
+                }
+                mono
+              />
               <InfoRow icon={<Building2 className="h-3.5 w-3.5" />} label={t("employees.department")} value={emp.department?.name || "—"} />
               <InfoRow icon={<Briefcase className="h-3.5 w-3.5" />} label={t("employees.position")} value={emp.position || "—"} />
               <InfoRow icon={<Phone className="h-3.5 w-3.5" />} label={t("employees.phone")} value={emp.phone || "—"} />
@@ -680,18 +713,33 @@ export function EmployeesView() {
     },
   });
 
+  // Fetch fingerprint registration status from ZK devices
+  const { data: fingerprintStatus } = useQuery<{ registeredIds: number[]; deviceCount: number }>({
+    queryKey: ["fingerprint-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/fingerprint-status");
+      if (!res.ok) return { registeredIds: [], deviceCount: 0 };
+      return res.json();
+    },
+    staleTime: 30000, // cache for 30s
+  });
+  const registeredFingerprintIds = useMemo(
+    () => new Set(fingerprintStatus?.registeredIds ?? []),
+    [fingerprintStatus?.registeredIds]
+  );
+
   const addForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
       employeeId: "",
       name: "",
       nameAr: "",
-      departmentId: "",
+      departmentId: undefined,
       position: "",
       phone: "",
       email: "",
       fingerprintId: null,
-      shiftId: "",
+      shiftId: undefined,
     },
   });
 
@@ -783,12 +831,12 @@ export function EmployeesView() {
         employeeId: emp.employeeId,
         name: emp.name,
         nameAr: emp.nameAr || "",
-        departmentId: emp.departmentId || "",
+        departmentId: emp.departmentId || undefined,
         position: emp.position || "",
         phone: emp.phone || "",
         email: emp.email || "",
         fingerprintId: emp.fingerprintId,
-        shiftId: emp.shiftId || "",
+        shiftId: emp.shiftId || undefined,
       });
       setEditOpen(true);
     },
@@ -817,8 +865,8 @@ export function EmployeesView() {
   };
 
   // Department select for forms
-  const DepartmentSelect = ({ field, form }: { field: { onChange: (v: string) => void; value: string }; form: ReturnType<typeof useForm<EmployeeFormValues>> }) => (
-    <Select onValueChange={field.onChange} value={field.value}>
+  const DepartmentSelect = ({ field, form }: { field: { onChange: (v: string) => void; value: string | undefined }; form: ReturnType<typeof useForm<EmployeeFormValues>> }) => (
+    <Select onValueChange={field.onChange} value={field.value || undefined}>
       <FormControl>
         <SelectTrigger>
           <SelectValue placeholder={t("employees.selectDepartment")} />
@@ -941,7 +989,7 @@ export function EmployeesView() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>{t("employees.shift")}</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value || undefined}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder={t("employees.selectShift")} />
@@ -1121,7 +1169,20 @@ export function EmployeesView() {
                       )}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell font-mono text-xs">
-                      {emp.fingerprintId ?? "—"}
+                      <span className="flex items-center gap-1.5">
+                        {emp.fingerprintId != null ? (
+                          <>
+                            {emp.fingerprintId}
+                            {registeredFingerprintIds.has(emp.fingerprintId) ? (
+                              <Fingerprint className="h-3.5 w-3.5 text-emerald-500" />
+                            ) : (
+                              <Fingerprint className="h-3.5 w-3.5 text-muted-foreground/40" />
+                            )}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -1217,7 +1278,7 @@ export function EmployeesView() {
                 )} />
                 <FormField control={editForm.control} name="shiftId" render={({ field }) => (
                   <FormItem><FormLabel>{t("employees.shift")}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <FormControl><SelectTrigger><SelectValue placeholder={t("employees.selectShift")} /></SelectTrigger></FormControl>
                       <SelectContent>
                         {shifts.map((s) => (<SelectItem key={s.id} value={s.id}>{s.name} ({s.startTime}-{s.endTime})</SelectItem>))}

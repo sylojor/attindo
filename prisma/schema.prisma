@@ -307,3 +307,18 @@ model Holiday {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ─── License ───
+
+model License {
+  id          String   @id @default(cuid())
+  licenseKey  String   @unique
+  type        String   // "fingerprint" or "payroll" or "full"
+  maxFingerprints Int? // null = unlimited
+  isActive    Boolean  @default(true)
+  issuedTo    String?
+  issuedAt    DateTime @default(now())
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
