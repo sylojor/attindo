@@ -1,0 +1,317 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/departments/[id]",
+      "regex": "^/api/departments/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/departments/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/devices/[id]",
+      "regex": "^/api/devices/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/devices/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/employees/[id]",
+      "regex": "^/api/employees/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/employees/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/employees/[id]/profile",
+      "regex": "^/api/employees/([^/]+?)/profile(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/employees/(?<nxtPid>[^/]+?)/profile(?:/)?$"
+    },
+    {
+      "page": "/api/holidays/[id]",
+      "regex": "^/api/holidays/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/holidays/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/allowances/[id]",
+      "regex": "^/api/payroll/allowances/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/payroll/allowances/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/deductions/[id]",
+      "regex": "^/api/payroll/deductions/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/payroll/deductions/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/loans/[id]",
+      "regex": "^/api/payroll/loans/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/payroll/loans/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/payslips/[id]",
+      "regex": "^/api/payroll/payslips/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/payroll/payslips/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/periods/[id]",
+      "regex": "^/api/payroll/periods/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/payroll/periods/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/salary-structures/[employeeId]",
+      "regex": "^/api/payroll/salary\\-structures/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPemployeeId": "nxtPemployeeId"
+      },
+      "namedRegex": "^/api/payroll/salary\\-structures/(?<nxtPemployeeId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/schedules/[id]",
+      "regex": "^/api/schedules/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/schedules/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/shifts/[id]",
+      "regex": "^/api/shifts/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/shifts/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/api",
+      "regex": "^/api(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api(?:/)?$"
+    },
+    {
+      "page": "/api/attendance",
+      "regex": "^/api/attendance(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/attendance(?:/)?$"
+    },
+    {
+      "page": "/api/backup",
+      "regex": "^/api/backup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/backup(?:/)?$"
+    },
+    {
+      "page": "/api/dashboard",
+      "regex": "^/api/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/dashboard(?:/)?$"
+    },
+    {
+      "page": "/api/departments",
+      "regex": "^/api/departments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/departments(?:/)?$"
+    },
+    {
+      "page": "/api/devices",
+      "regex": "^/api/devices(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/devices(?:/)?$"
+    },
+    {
+      "page": "/api/employees",
+      "regex": "^/api/employees(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/employees(?:/)?$"
+    },
+    {
+      "page": "/api/fingerprint-status",
+      "regex": "^/api/fingerprint\\-status(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/fingerprint\\-status(?:/)?$"
+    },
+    {
+      "page": "/api/holidays",
+      "regex": "^/api/holidays(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/holidays(?:/)?$"
+    },
+    {
+      "page": "/api/license",
+      "regex": "^/api/license(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/license(?:/)?$"
+    },
+    {
+      "page": "/api/license/activate",
+      "regex": "^/api/license/activate(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/license/activate(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/allowances",
+      "regex": "^/api/payroll/allowances(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/allowances(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/deductions",
+      "regex": "^/api/payroll/deductions(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/deductions(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/loans",
+      "regex": "^/api/payroll/loans(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/loans(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/payslips",
+      "regex": "^/api/payroll/payslips(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/payslips(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/periods",
+      "regex": "^/api/payroll/periods(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/periods(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/process",
+      "regex": "^/api/payroll/process(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/process(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/salary-structures",
+      "regex": "^/api/payroll/salary\\-structures(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/salary\\-structures(?:/)?$"
+    },
+    {
+      "page": "/api/payroll/summary",
+      "regex": "^/api/payroll/summary(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payroll/summary(?:/)?$"
+    },
+    {
+      "page": "/api/reports",
+      "regex": "^/api/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/reports(?:/)?$"
+    },
+    {
+      "page": "/api/schedules",
+      "regex": "^/api/schedules(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/schedules(?:/)?$"
+    },
+    {
+      "page": "/api/seed",
+      "regex": "^/api/seed(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/seed(?:/)?$"
+    },
+    {
+      "page": "/api/settings",
+      "regex": "^/api/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/settings(?:/)?$"
+    },
+    {
+      "page": "/api/shifts",
+      "regex": "^/api/shifts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/shifts(?:/)?$"
+    },
+    {
+      "page": "/api/sync",
+      "regex": "^/api/sync(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/sync(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
