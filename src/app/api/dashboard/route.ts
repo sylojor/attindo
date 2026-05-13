@@ -157,11 +157,11 @@ export async function GET() {
       count: d._count.employees,
     }));
 
-    // Check ZK service health with 3-second timeout
+    // Check ZK service health with 2-second timeout (non-blocking)
     let zkServiceStatus = "offline";
     try {
       const zkHealthRes = await fetch("http://127.0.0.1:3003/api/health", {
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(2000),
       });
       if (zkHealthRes.ok) {
         zkServiceStatus = "online";

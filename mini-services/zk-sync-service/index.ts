@@ -14,7 +14,7 @@
  * - ZK T4-C, T5-C (Fingerprint)
  * - And all ZKTeco devices using the ZK communication protocol (port 4370)
  * 
- * BioTime Replacement Features:
+ * Features:
  * - Real device connection/disconnection
  * - Attendance log download (with auto-clear)
  * - Employee upload/delete on device

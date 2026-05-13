@@ -8,7 +8,7 @@ import {
   Clock,
   AlertTriangle,
   Activity,
-  Shield,
+  Fingerprint,
 } from "lucide-react";
 import {
   Card,
@@ -166,7 +166,7 @@ export function DashboardView() {
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white shrink-0">
-              <Shield className="h-5 w-5" />
+              <Fingerprint className="h-5 w-5" />
             </div>
             <div>
               <p className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">

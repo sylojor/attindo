@@ -14,7 +14,6 @@ import {
   Settings,
   Moon,
   Sun,
-  Database,
   RefreshCw,
   Languages,
 } from "lucide-react";
@@ -34,7 +33,7 @@ import { PayrollView } from "./payroll";
 import { ReportsView } from "./reports";
 import { SettingsView } from "./settings";
 
-const APP_VERSION = "v2.0.0";
+const APP_VERSION = "v2.1.0";
 
 export function AttindoLayout() {
   const { activeTab, setActiveTab, syncProgress, isGlobalSyncing, lang, setLang, setCurrency } = useAppStore();
@@ -74,17 +73,6 @@ export function AttindoLayout() {
     { id: "reports", label: t("nav.reports"), icon: FileBarChart },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ];
-
-  const handleSeed = async () => {
-    try {
-      const res = await fetch("/api/seed", { method: "POST" });
-      if (res.ok) {
-        window.location.reload();
-      }
-    } catch {
-      // Error handled silently
-    }
-  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -179,17 +167,6 @@ export function AttindoLayout() {
               {isConnected ? t("live") : t("offline")}
             </span>
           </div>
-
-          {/* Seed Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSeed}
-            className="hidden sm:inline-flex h-7 text-xs gap-1"
-          >
-            <Database className="h-3 w-3" />
-            {t("seed.data")}
-          </Button>
 
           {/* Language Toggle */}
           <Button
