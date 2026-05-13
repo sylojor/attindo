@@ -1,0 +1,324 @@
+// Attindo HR/Payroll - Database Schema
+// v2.0.0
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── System Settings ───
+
+model Settings {
+  id       String @id @default("default")
+  currency String @default("SAR")
+  lang     String @default("ar") // ar, en, bilingual
+  companyName     String @default("Attindo")
+  companyNameAr   String @default("أتندو")
+}
+
+// ─── Department ───
+
+model Department {
+  id          String @id @default(cuid())
+  name        String @unique
+  nameAr      String?
+  manager     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees Employee[]
+}
+
+// ─── Core Models ───
+
+model Employee {
+  id           String   @id @default(cuid())
+  employeeId   String   @unique // Company employee ID (e.g., EMP-001)
+  name         String
+  nameAr       String?  // Arabic name
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  position     String?
+  phone        String?
+  email        String?
+  fingerprintId Int?    // ID on the fingerprint device
+  photoUrl     String?
+  isActive     Boolean  @default(true)
+  hireDate     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shiftId      String?
+  shift        Shift?   @relation(fields: [shiftId], references: [id])
+  attendanceLogs AttendanceLog[]
+  schedules    Schedule[]
+  deviceAssignments DeviceEmployee[]
+  salaryStructure SalaryStructure?
+  paySlips     PaySlip[]
+  allowances   Allowance[]
+  deductions   Deduction[]
+  loans        Loan[]
+}
+
+model Device {
+  id           String   @id @default(cuid())
+  name         String
+  ip           String
+  port         Int      @default(4370)
+  deviceType   String   @default("ZKTeco") // ZKTeco, ZK, MB20, SpeedFace, iFace, inBio
+  deviceModel  String?  // Specific model: MB20, F18, SpeedFace-V5L, etc.
+  serialNumber String?
+  firmware     String?
+  status       String   @default("offline") // online, offline, syncing, error
+  lastSyncAt   DateTime?
+  isActive     Boolean  @default(true)
+  // Multi-biometric capabilities (auto-detected from device)
+  capabilities String   @default("fingerprint") // comma-separated: fingerprint,face,palm,card,password
+  fingerCount  Int      @default(0) // number of fingerprint templates on device
+  faceCount    Int      @default(0) // number of face templates on device
+  palmCount    Int      @default(0) // number of palm templates on device
+  userCount    Int      @default(0) // total users on device
+  logCount     Int      @default(0) // total attendance logs on device
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  attendanceLogs AttendanceLog[]
+  syncLogs     SyncLog[]
+  deviceEmployees DeviceEmployee[]
+}
+
+model AttendanceLog {
+  id           String   @id @default(cuid())
+  employeeId   String?
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  deviceId     String
+  device       Device   @relation(fields: [deviceId], references: [id])
+  timestamp    DateTime
+  verifyMode   String   @default("fingerprint") // fingerprint, card, password, face
+  status       String   @default("check-in") // check-in, check-out
+  ioMode       Int      @default(0) // 0=check-in, 1=check-out
+  workCode     Int      @default(0)
+  syncedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([timestamp])
+  @@index([deviceId])
+}
+
+model Shift {
+  id           String   @id @default(cuid())
+  name         String
+  nameAr       String?
+  startTime    String   // HH:mm format
+  endTime      String   // HH:mm format
+  gracePeriod  Int      @default(15) // minutes grace period for late
+  isOvernight  Boolean  @default(false) // shift crosses midnight
+  color        String   @default("#10b981") // UI color
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employees   Employee[]
+  schedules   Schedule[]
+}
+
+model Schedule {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  shiftId      String
+  shift        Shift    @relation(fields: [shiftId], references: [id])
+  effectiveDate DateTime // When this schedule takes effect
+  dayOfWeek    Int?     // 0=Sunday, 1=Monday, ..., 6=Saturday (null = every day)
+  isOffDay     Boolean  @default(false) // Mark this as a day off (عطلة)
+  endDate      DateTime? // When this schedule ends (null = indefinite)
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([shiftId])
+}
+
+model SyncLog {
+  id             String   @id @default(cuid())
+  deviceId       String
+  device         Device   @relation(fields: [deviceId], references: [id])
+  syncType       String   // full, incremental, employee-upload
+  status         String   // pending, running, completed, failed
+  recordsFetched Int      @default(0)
+  recordsUploaded Int     @default(0)
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([deviceId])
+  @@index([status])
+}
+
+model DeviceEmployee {
+  id           String   @id @default(cuid())
+  deviceId     String
+  device       Device   @relation(fields: [deviceId], references: [id])
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  fingerprintId Int     // ID assigned on the device
+  isUploaded   Boolean  @default(false) // whether employee data is uploaded to device
+  hasFinger    Boolean  @default(false) // fingerprint template uploaded
+  hasFace      Boolean  @default(false) // face template uploaded (MB20/SpeedFace/iFace)
+  hasPalm      Boolean  @default(false) // palm template uploaded (MB20)
+  lastSyncAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([deviceId, employeeId])
+  @@unique([deviceId, fingerprintId])
+}
+
+// ─── Payroll Models ───
+
+model SalaryStructure {
+  id                  String   @id @default(cuid())
+  employeeId          String   @unique
+  employee            Employee @relation(fields: [employeeId], references: [id])
+  basicSalary         Float   @default(0)
+  housingAllowance    Float   @default(0)
+  transportAllowance  Float   @default(0)
+  foodAllowance       Float   @default(0)
+  otherAllowances     Float   @default(0)
+  overtimeRate        Float   @default(0)    // per hour
+  deductionPerLate    Float   @default(0)    // per late occurrence
+  deductionPerAbsent  Float   @default(0)    // per absent day
+  currency            String   @default("SAR")
+  effectiveDate       DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PayrollPeriod {
+  id              String   @id @default(cuid())
+  name            String   // e.g. "January 2025"
+  month           Int      // 1-12
+  year            Int
+  startDate       DateTime
+  endDate         DateTime
+  status          String   @default("draft") // draft, processing, completed, approved
+  totalGross      Float    @default(0)
+  totalDeductions Float    @default(0)
+  totalNet        Float    @default(0)
+  processedAt     DateTime?
+  approvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  paySlips PaySlip[]
+
+  @@unique([month, year])
+}
+
+model PaySlip {
+  id                String   @id @default(cuid())
+  employeeId        String
+  employee          Employee @relation(fields: [employeeId], references: [id])
+  payrollPeriodId   String
+  payrollPeriod     PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  basicSalary       Float    @default(0)
+  totalAllowances   Float    @default(0)
+  totalDeductions   Float    @default(0)
+  loanDeduction     Float    @default(0)
+  overtimePay       Float    @default(0)
+  netSalary         Float    @default(0)
+  workingDays       Int      @default(0)
+  presentDays       Int      @default(0)
+  absentDays        Int      @default(0)
+  lateDays          Int      @default(0)
+  overtimeHours     Float    @default(0)
+  status            String   @default("pending") // pending, paid
+  paidAt            DateTime?
+  createdAt         DateTime @default(now())
+
+  @@unique([employeeId, payrollPeriodId])
+  @@index([employeeId])
+  @@index([payrollPeriodId])
+}
+
+model Allowance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  name        String
+  nameAr      String?
+  amount      Float
+  type        String   @default("fixed") // fixed, percentage
+  isRecurring Boolean  @default(true)
+  effectiveDate DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+}
+
+model Deduction {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  name        String
+  nameAr      String?
+  amount      Float
+  type        String   @default("fixed") // fixed, percentage
+  isRecurring Boolean  @default(true)
+  effectiveDate DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+}
+
+// ─── Loan / Advance (السلف) ───
+
+model Loan {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  type        String   @default("advance") // advance (سلفة), loan (قرض)
+  amount      Float
+  monthlyDeduction Float @default(0) // amount deducted per month
+  remainingBalance Float // remaining balance
+  issueDate   DateTime @default(now())
+  status      String   @default("active") // active, completed, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+// ─── Holiday (عطلة / يوم عطلة محدد) ───
+
+model Holiday {
+  id          String   @id @default(cuid())
+  date        DateTime @unique // The specific date of the holiday
+  name        String   // Holiday name (e.g., "Eid Al-Fitr")
+  nameAr      String?  // Arabic name (e.g., "عيد الفطر")
+  isRecurring Boolean  @default(false) // Recurs every year on same date
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── License ───
+
+model License {
+  id          String   @id @default(cuid())
+  licenseKey  String   @unique
+  type        String   // "fingerprint" or "payroll" or "full"
+  maxFingerprints Int? // null = unlimited
+  isActive    Boolean  @default(true)
+  issuedTo    String?
+  issuedAt    DateTime @default(now())
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

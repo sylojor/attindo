@@ -1,0 +1,5 @@
+1:"$Sreact.fragment"
+2:I[97367,["/_next/static/chunks/77d2792b7dba5e63.js"],"ViewportBoundary"]
+3:I[97367,["/_next/static/chunks/77d2792b7dba5e63.js"],"MetadataBoundary"]
+4:"$Sreact.suspense"
+0:{"buildId":"g02cswcvCJRRw7LGzq_i-","rsc":["$","$1","h",{"children":[null,["$","$L2",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]}],["$","div",null,{"hidden":true,"children":["$","$L3",null,{"children":["$","$4",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Attindo - HR & Attendance Management"}],["$","meta","1",{"name":"description","content":"Professional HR & Attendance Management System with fingerprint device integration"}],["$","meta","2",{"name":"author","content":"Attindo Team"}],["$","meta","3",{"name":"keywords","content":"Attindo,HR,Attendance,Payroll,Fingerprint,ZKTeco"}]]}]}]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"loading":null,"isPartial":false}
