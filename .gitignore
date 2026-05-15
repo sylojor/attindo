@@ -54,3 +54,4 @@ server.log
 /skills/release/
 *.exe
 dist/
+/release/
