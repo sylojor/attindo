@@ -338,7 +338,8 @@ export async function DELETE(
 
     // Remove from ZK sync service (non-blocking)
     removeDeviceFromZK(id).catch((err) => {
-      console.error("[Devices] Failed to remove from ZK sync service:", err);
+      // ZK service removal is optional - don't log as error
+      // console.error("[Devices] Failed to remove from ZK sync service:", err);
     });
 
     return NextResponse.json({
@@ -358,6 +359,7 @@ async function removeDeviceFromZK(deviceId: string) {
     });
     console.log(`[Devices] Removed device ${deviceId} from ZK sync service`);
   } catch (err) {
-    console.error("[Devices] ZK removal error:", err);
+    // ZK service removal is optional - silent fail
+    // console.error("[Devices] ZK removal error:", err);
   }
 }

@@ -286,7 +286,7 @@ async function performDeviceSync(deviceId: string, syncLogId: string) {
       data: { status: "error" },
     }).catch(() => {});
 
-    console.error(`[Sync] Device ${deviceId} sync failed:`, errorMessage);
+    console.warn(`[Sync] Device ${deviceId} sync failed: ${errorMessage}`);
   }
 }
 

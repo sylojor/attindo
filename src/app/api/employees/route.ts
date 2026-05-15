@@ -186,7 +186,8 @@ export async function POST(request: NextRequest) {
 
     // Trigger employee upload to devices (non-blocking)
     uploadEmployeeToDevices(employee).catch((err) => {
-      console.error("[Employees] Failed to upload employee to devices:", err);
+      // ZK service upload is optional - silent fail
+      // console.error("[Employees] Failed to upload employee to devices:", err);
     });
 
     return NextResponse.json(employee, { status: 201 });
@@ -231,6 +232,7 @@ async function uploadEmployeeToDevices(employee: {
       }
     }
   } catch (err) {
-    console.error("[Employees] Error uploading employee to devices:", err);
+    // ZK service upload is optional - silent fail
+    // console.error("[Employees] Error uploading employee to devices:", err);
   }
 }

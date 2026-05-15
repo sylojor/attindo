@@ -16,7 +16,7 @@ const http = require('http');
 // ---------------------------------------------------------------------------
 const SERVER_PORT = 3456;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
-const APP_VERSION = 'v2.1.5';
+const APP_VERSION = 'v2.1.9';
 const isDev = !app.isPackaged;
 
 // ---------------------------------------------------------------------------
@@ -365,17 +365,38 @@ function createDatabaseWithSQL(dbPath) {
   `;
 
   try {
-    // Use better-sqlite3 style: write a minimal valid SQLite database
-    // Since we don't have better-sqlite3, use the Prisma client approach
-    // Create empty file and let Prisma handle schema on first connect
-    fs.writeFileSync(dbPath, Buffer.alloc(0));
-    log('[DB] Created empty database file at:', dbPath);
-    log('[DB] Schema will be applied by Prisma client on first connection');
+    // Create a minimal valid SQLite database with the full schema
+    // Using the built-in SQL statements defined above
+    const { execSync } = require('child_process');
     
-    // Note: Prisma with SQLite will auto-create tables if using db push,
-    // but since we can't run prisma db push in packaged app, we rely on
-    // the /api/health endpoint to detect and report missing tables.
-    // The API routes use .catch(() => 0) to handle missing table errors gracefully.
+    // Try to use sqlite3 CLI if available
+    try {
+      // Write SQL to a temp file and execute it
+      const sqlPath = path.join(userDataPath, 'init_schema.sql');
+      fs.writeFileSync(sqlPath, CREATE_TABLES_SQL);
+      
+      // Try sqlite3 command
+      execSync(`sqlite3 "${dbPath}" < "${sqlPath}"`, { stdio: 'ignore', timeout: 10000 });
+      fs.unlinkSync(sqlPath); // Clean up
+      
+      if (fs.existsSync(dbPath) && fs.statSync(dbPath).size > 100) {
+        log('[DB] Database created with schema via sqlite3 at:', dbPath);
+        return;
+      }
+    } catch (sqliteErr) {
+      // sqlite3 CLI not available, fall through
+      log('[DB] sqlite3 CLI not available, using Node.js fallback');
+    }
+    
+    // Fallback: Create the database using Node.js child process with Prisma
+    // We'll create an empty file and then use the Next.js API to apply schema
+    fs.writeFileSync(dbPath, Buffer.alloc(0));
+    log('[DB] Created placeholder database file at:', dbPath);
+    log('[DB] Schema will be applied via /api/seed on first launch');
+    
+    // Signal that schema needs to be applied
+    const needsSchemaPath = path.join(userDataPath, '.needs-schema');
+    fs.writeFileSync(needsSchemaPath, new Date().toISOString());
   } catch (err) {
     logError('[DB] Failed to create database:', err);
   }

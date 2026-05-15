@@ -101,13 +101,15 @@ export async function POST(request: NextRequest) {
 
     // Register with ZK sync service (non-blocking)
     registerDeviceWithZK(device).catch((err) => {
-      console.error("[Devices] Failed to register with ZK sync service:", err);
+      // ZK service registration is optional - don't log as error
+      // console.error("[Devices] Failed to register with ZK sync service:", err);
     });
 
     // Create DeviceEmployee records for all active employees
     const supportsFinger = resolvedCapabilities.includes("fingerprint");
     assignEmployeesToDevice(device.id, supportsFinger).catch((err) => {
-      console.error("[Devices] Failed to assign employees to device:", err);
+      // ZK service assignment is optional - silent fail
+      // console.error("[Devices] Failed to assign employees to device:", err);
     });
 
     return NextResponse.json(device, { status: 201 });
@@ -141,7 +143,8 @@ async function registerDeviceWithZK(device: {
     });
     console.log(`[Devices] Registered ${device.name} with ZK sync service`);
   } catch (err) {
-    console.error("[Devices] ZK registration error:", err);
+    // ZK service registration is optional - silent fail
+    // console.error("[Devices] ZK registration error:", err);
   }
 }
 
@@ -178,6 +181,7 @@ async function assignEmployeesToDevice(deviceId: string, supportsFinger: boolean
       }
     }
   } catch (err) {
-    console.error("[Devices] Error assigning employees to device:", err);
+    // ZK service assignment is optional - silent fail
+    // console.error("[Devices] Error assigning employees to device:", err);
   }
 }

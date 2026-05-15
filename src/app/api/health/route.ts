@@ -6,7 +6,7 @@ export async function GET() {
   const health: Record<string, unknown> = {
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: "2.1.5",
+    version: "2.1.9",
     environment: process.env.NODE_ENV || "unknown",
     electron: process.env.ELECTRON_RUN_AS_NODE === "1",
     database: {
