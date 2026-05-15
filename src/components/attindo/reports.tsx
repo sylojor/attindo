@@ -52,6 +52,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "@/hooks/use-translation";
 import { useAppStore } from "@/store/app-store";
+import { fetchJson } from "@/lib/utils";
 import { CURRENCIES } from "@/components/attindo/settings";
 
 // ─── Helpers ───
@@ -612,9 +613,11 @@ export function ReportsView() {
   const { data: departments = [] } = useQuery<DepartmentOption[]>({
     queryKey: ["report-departments"],
     queryFn: async () => {
-      const res = await fetch("/api/departments");
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        return await fetchJson<DepartmentOption[]>("/api/departments");
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -622,10 +625,12 @@ export function ReportsView() {
   const { data: employees = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["report-employees"],
     queryFn: async () => {
-      const res = await fetch("/api/employees?limit=200&isActive=true");
-      if (!res.ok) return [];
-      const d = await res.json();
-      return d.employees || [];
+      try {
+        const d = await fetchJson<{ employees: EmployeeOption[] }>("/api/employees?limit=200&isActive=true");
+        return d.employees || [];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -633,9 +638,11 @@ export function ReportsView() {
   const { data: shifts = [] } = useQuery<ShiftOption[]>({
     queryKey: ["report-shifts"],
     queryFn: async () => {
-      const res = await fetch("/api/shifts");
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        return await fetchJson<ShiftOption[]>("/api/shifts");
+      } catch {
+        return [];
+      }
     },
     enabled: filterType === "working-by-shift",
   });
@@ -651,12 +658,7 @@ export function ReportsView() {
       if (filterType === "employee" && selectedEmployeeId && selectedEmployeeId !== "all") {
         params.set("employeeId", selectedEmployeeId);
       }
-      const res = await fetch(`/api/reports?${params}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to generate report");
-      }
-      return res.json();
+      return fetchJson<ReportData>(`/api/reports?${params}`);
     },
     enabled: reportGenerated && (filterType === "department" || filterType === "employee"),
   });
@@ -665,12 +667,7 @@ export function ReportsView() {
   const { data: absentData, isLoading: absentLoading, refetch: refetchAbsent } = useQuery<AbsentOnDateData>({
     queryKey: ["report-absent-on-date", absentDate],
     queryFn: async () => {
-      const res = await fetch(`/api/reports?reportType=absent-on-date&date=${absentDate}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to generate report");
-      }
-      return res.json();
+      return fetchJson<AbsentOnDateData>(`/api/reports?reportType=absent-on-date&date=${absentDate}`);
     },
     enabled: reportGenerated && filterType === "absent-on-date",
   });
@@ -679,12 +676,7 @@ export function ReportsView() {
   const { data: shiftData, isLoading: shiftLoading, refetch: refetchShift } = useQuery<WorkingByShiftData>({
     queryKey: ["report-working-by-shift", selectedShiftId, shiftDate],
     queryFn: async () => {
-      const res = await fetch(`/api/reports?reportType=working-by-shift&shiftId=${selectedShiftId}&date=${shiftDate}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to generate report");
-      }
-      return res.json();
+      return fetchJson<WorkingByShiftData>(`/api/reports?reportType=working-by-shift&shiftId=${selectedShiftId}&date=${shiftDate}`);
     },
     enabled: reportGenerated && filterType === "working-by-shift" && !!selectedShiftId,
   });

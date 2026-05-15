@@ -73,6 +73,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/hooks/use-translation";
+import { fetchJson } from "@/lib/utils";
 import { format } from "date-fns";
 
 // Types
@@ -201,37 +202,33 @@ export function ShiftsView() {
   const { data: shifts = [], isLoading: shiftsLoading } = useQuery<Shift[]>({
     queryKey: ["shifts"],
     queryFn: async () => {
-      const res = await fetch("/api/shifts");
-      if (!res.ok) throw new Error("Failed to fetch shifts");
-      return res.json();
+      return fetchJson<Shift[]>("/api/shifts");
     },
   });
 
   const { data: schedules = [], isLoading: schedulesLoading } = useQuery<Schedule[]>({
     queryKey: ["schedules"],
     queryFn: async () => {
-      const res = await fetch("/api/schedules");
-      if (!res.ok) throw new Error("Failed to fetch schedules");
-      return res.json();
+      return fetchJson<Schedule[]>("/api/schedules");
     },
   });
 
   const { data: employees = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["employees-shifts"],
     queryFn: async () => {
-      const res = await fetch("/api/employees?limit=100&isActive=true");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.employees || [];
+      try {
+        const data = await fetchJson<{ employees: EmployeeOption[] }>("/api/employees?limit=100&isActive=true");
+        return data.employees || [];
+      } catch {
+        return [];
+      }
     },
   });
 
   const { data: holidays = [], isLoading: holidaysLoading } = useQuery<Holiday[]>({
     queryKey: ["holidays"],
     queryFn: async () => {
-      const res = await fetch("/api/holidays");
-      if (!res.ok) throw new Error("Failed to fetch holidays");
-      return res.json();
+      return fetchJson<Holiday[]>("/api/holidays");
     },
   });
 
@@ -281,16 +278,11 @@ export function ShiftsView() {
   // Shift mutations
   const addShiftMutation = useMutation({
     mutationFn: async (values: ShiftFormValues) => {
-      const res = await fetch("/api/shifts", {
+      return fetchJson("/api/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create shift");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
@@ -305,16 +297,11 @@ export function ShiftsView() {
 
   const editShiftMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: ShiftFormValues }) => {
-      const res = await fetch(`/api/shifts/${id}`, {
+      return fetchJson(`/api/shifts/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update shift");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
@@ -329,9 +316,7 @@ export function ShiftsView() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/shifts/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete shift");
-      return res.json();
+      return fetchJson(`/api/shifts/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
@@ -346,7 +331,7 @@ export function ShiftsView() {
   // Schedule mutations
   const addScheduleMutation = useMutation({
     mutationFn: async (values: ScheduleFormValues) => {
-      const res = await fetch("/api/schedules", {
+      return fetchJson("/api/schedules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -356,11 +341,6 @@ export function ShiftsView() {
           endDate: values.endDate || null,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create schedule");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -375,9 +355,7 @@ export function ShiftsView() {
 
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/schedules/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete schedule");
-      return res.json();
+      return fetchJson(`/api/schedules/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -392,16 +370,11 @@ export function ShiftsView() {
   // Holiday mutations
   const addHolidayMutation = useMutation({
     mutationFn: async (values: HolidayFormValues) => {
-      const res = await fetch("/api/holidays", {
+      return fetchJson("/api/holidays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create holiday");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["holidays"] });
@@ -416,9 +389,7 @@ export function ShiftsView() {
 
   const deleteHolidayMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/holidays/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete holiday");
-      return res.json();
+      return fetchJson(`/api/holidays/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["holidays"] });

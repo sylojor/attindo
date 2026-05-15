@@ -300,8 +300,9 @@ async function saveAttendanceRecords(deviceId: string, records: Array<{
   const verifyModeMap: Record<number, string> = {
     0: "fingerprint", 1: "fingerprint", 2: "card", 3: "password",
     4: "face", 5: "palm", 6: "iris", 7: "vein",
-    8: "face+password", 9: "palm+password", 10: "finger+password",
-    11: "face+finger", 12: "card+password", 13: "finger+card",
+    8: "face+password", 9: "palm+password", 10: "fingerprint+password",
+    11: "face+fingerprint", 12: "card+password", 13: "fingerprint+card",
+    14: "face+card", 15: "palm+card", 16: "face+palm",
   };
   const ioModeMap: Record<number, string> = {
     0: "check-in", 1: "check-out", 4: "check-in", 5: "check-out",

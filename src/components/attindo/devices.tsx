@@ -83,6 +83,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/hooks/use-translation";
+import { fetchJson } from "@/lib/utils";
 import { format } from "date-fns";
 
 const MAX_DEVICES = 6;
@@ -94,9 +95,24 @@ const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities
     models: "MB20",
     capabilities: ["fingerprint", "face", "palm", "card", "password"],
   },
+  ProFace: {
+    label: "ZKTeco ProFace X",
+    models: "ProFace-X/XD",
+    capabilities: ["face", "palm", "card", "password"],
+  },
   SpeedFace: {
     label: "ZKTeco SpeedFace",
-    models: "SpeedFace-V4L/V5L",
+    models: "SpeedFace-V4L/V5L/V5L-Pro",
+    capabilities: ["fingerprint", "face", "card"],
+  },
+  uFace: {
+    label: "ZKTeco uFace",
+    models: "uFace202/302/402",
+    capabilities: ["fingerprint", "face", "card"],
+  },
+  G1: {
+    label: "ZKTeco G1",
+    models: "G1/G1-Pro",
     capabilities: ["fingerprint", "face", "card"],
   },
   iFace: {
@@ -104,9 +120,14 @@ const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities
     models: "iFace302/402",
     capabilities: ["fingerprint", "face"],
   },
+  FaceDepot: {
+    label: "ZKTeco FaceDepot",
+    models: "FaceDepot7E/10E",
+    capabilities: ["face", "card", "password"],
+  },
   ZKTeco: {
-    label: "ZKTeco (F/K-Series)",
-    models: "F18/F22/K14/K20/K40",
+    label: "ZKTeco (F-Series)",
+    models: "F16/F18/F22/F22-Pro",
     capabilities: ["fingerprint", "card", "password"],
   },
   inBio: {
@@ -114,9 +135,19 @@ const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities
     models: "inBio160/260/460",
     capabilities: ["fingerprint", "card", "password"],
   },
+  KSeries: {
+    label: "ZKTeco K-Series",
+    models: "K14/K20/K40",
+    capabilities: ["fingerprint", "card", "password"],
+  },
+  XSeries: {
+    label: "ZKTeco X-Series",
+    models: "X6/X7/X8",
+    capabilities: ["fingerprint", "card", "password"],
+  },
   ZK: {
-    label: "ZK Generic",
-    models: "T4-C/T5-C/Other",
+    label: "ZK Generic (T-Series/Other)",
+    models: "T4-C/T5-C/TF1700/Other",
     capabilities: ["fingerprint", "card", "password"],
   },
 };
@@ -242,9 +273,7 @@ export function DevicesView() {
   const { data: devices = [], isLoading } = useQuery<Device[]>({
     queryKey: ["devices"],
     queryFn: async () => {
-      const res = await fetch("/api/devices");
-      if (!res.ok) throw new Error("Failed to fetch devices");
-      return res.json();
+      return fetchJson<Device[]>("/api/devices");
     },
     refetchInterval: 15000,
   });
@@ -266,24 +295,22 @@ export function DevicesView() {
   // Add mutation
   const addMutation = useMutation({
     mutationFn: async (values: DeviceFormValues) => {
-      const res = await fetch("/api/devices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        // Translate known error messages
-        const msg = err.error || "Failed to add device";
+      try {
+        return await fetchJson("/api/devices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Failed to add device";
         if (msg.includes("already exists")) {
           throw new Error(t("devices.duplicateIp"));
         }
         if (msg.includes("Maximum") || msg.includes("maximum")) {
           throw new Error(t("devices.maxDevices"));
         }
-        throw new Error(msg);
+        throw error;
       }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
@@ -301,9 +328,7 @@ export function DevicesView() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/devices/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete device");
-      return res.json();
+      return fetchJson(`/api/devices/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
@@ -328,15 +353,11 @@ export function DevicesView() {
     });
 
     try {
-      const res = await fetch("/api/sync", {
+      await fetchJson("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "device", deviceId }),
       });
-
-      if (!res.ok) {
-        throw new Error("Sync failed");
-      }
 
       let progress = 0;
       const interval = setInterval(() => {
@@ -356,9 +377,8 @@ export function DevicesView() {
       }, 800);
 
       const checkComplete = setInterval(async () => {
-        const devRes = await fetch("/api/devices");
-        if (devRes.ok) {
-          const allDevs: Device[] = await devRes.json();
+        try {
+          const allDevs = await fetchJson<Device[]>("/api/devices");
           const dev = allDevs.find((d) => d.id === deviceId);
           if (dev && dev.status !== "syncing") {
             clearInterval(checkComplete);
@@ -382,6 +402,8 @@ export function DevicesView() {
               description: `${deviceName} synced successfully`,
             });
           }
+        } catch {
+          // ignore error in polling
         }
       }, 3000);
 
@@ -415,16 +437,11 @@ export function DevicesView() {
   // Sync all devices
   const syncAll = async () => {
     try {
-      const res = await fetch("/api/sync", {
+      await fetchJson("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "all" }),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Sync all failed");
-      }
 
       toast({ title: t("syncing"), description: "All devices syncing in background" });
 
@@ -446,12 +463,11 @@ export function DevicesView() {
   const testConnection = async (deviceId: string, deviceName: string) => {
     setTestingId(deviceId);
     try {
-      const res = await fetch(`/api/devices/${deviceId}`, {
+      const data = await fetchJson<{ success?: boolean; message?: string; info?: { serialNumber?: string; capabilities?: string[] } }>(`/api/devices/${deviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "test-connection" }),
       });
-      const data = await res.json();
 
       if (data.success) {
         const caps = data.info?.capabilities;
@@ -482,12 +498,11 @@ export function DevicesView() {
   const detectCapabilities = async (deviceId: string, deviceName: string) => {
     setDetectingId(deviceId);
     try {
-      const res = await fetch(`/api/devices/${deviceId}`, {
+      const data = await fetchJson<{ success?: boolean; capabilities?: string[]; deviceModel?: string; error?: string }>(`/api/devices/${deviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "detect-capabilities" }),
       });
-      const data = await res.json();
 
       if (data.success && data.capabilities) {
         toast({
@@ -517,12 +532,11 @@ export function DevicesView() {
   const restartDevice = async (deviceId: string, deviceName: string) => {
     setRestartingId(deviceId);
     try {
-      const res = await fetch(`/api/devices/${deviceId}`, {
+      const data = await fetchJson<{ success?: boolean; error?: string }>(`/api/devices/${deviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "restart" }),
       });
-      const data = await res.json();
       if (data.success) {
         toast({ title: t("devices.restart"), description: `${deviceName} is restarting...` });
         queryClient.invalidateQueries({ queryKey: ["devices"] });
@@ -540,12 +554,11 @@ export function DevicesView() {
   const syncDeviceTime = async (deviceId: string, deviceName: string) => {
     setSyncingTimeId(deviceId);
     try {
-      const res = await fetch(`/api/devices/${deviceId}`, {
+      const data = await fetchJson<{ success?: boolean; error?: string }>(`/api/devices/${deviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "sync-time" }),
       });
-      const data = await res.json();
       if (data.success) {
         toast({ title: t("devices.syncTime"), description: `${deviceName} time synchronized with server` });
       } else {
@@ -562,12 +575,11 @@ export function DevicesView() {
   const fetchDeviceUsers = async (deviceId: string) => {
     setLoadingUsers(true);
     try {
-      const res = await fetch(`/api/devices/${deviceId}`, {
+      const data = await fetchJson(`/api/devices/${deviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "get-users" }),
       });
-      const data = await res.json();
       setDeviceUsers(Array.isArray(data) ? data : []);
     } catch {
       setDeviceUsers([]);
@@ -580,12 +592,11 @@ export function DevicesView() {
   // Delete user from device
   const deleteUserFromDevice = async (deviceId: string, fingerprintId: number, userName: string) => {
     try {
-      const res = await fetch(`/api/devices/${deviceId}`, {
+      const data = await fetchJson<{ success?: boolean; error?: string }>(`/api/devices/${deviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete-user", fingerprintId }),
       });
-      const data = await res.json();
       if (data.success) {
         toast({ title: t("devices.deviceDeleted"), description: `${userName} removed from device` });
         fetchDeviceUsers(deviceId);
@@ -646,10 +657,10 @@ export function DevicesView() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Shield className="h-5 w-5 text-emerald-600" />
-            ZKTeco Devices
+            {t("devices.title")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {devices.length}/{MAX_DEVICES} Devices &mdash; Official ZKTeco ZK Protocol Support (incl. MB20)
+            {t("devices.subtitle").replace("{count}", String(devices.length)).replace("{max}", String(MAX_DEVICES))}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -798,8 +809,7 @@ export function DevicesView() {
                 {t("devices.zkBanner.title")}
               </p>
               <p className="text-muted-foreground text-xs mt-0.5">
-                Compatible with: <strong>MB20</strong> (Multi-Biometric), F18, F22, F22-Pro, SpeedFace-V4L/V5L, iFace302/402, inBio160/260/460, K14/K20/K40, ZK T4-C/T5-C &mdash;
-                All devices using ZK TCP protocol on port 4370
+                {t("devices.zkBanner.compat")}
               </p>
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="text-[10px] text-muted-foreground">{t("devices.zkBanner.verification")}</span>

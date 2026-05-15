@@ -8,7 +8,7 @@ import {
   Clock,
   AlertTriangle,
   Activity,
-  Shield,
+  Fingerprint,
 } from "lucide-react";
 import {
   Card,
@@ -18,6 +18,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -39,6 +40,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { useTranslation } from "@/hooks/use-translation";
+import { fetchJson } from "@/lib/utils";
 
 interface DashboardData {
   totalEmployees: number;
@@ -133,14 +135,13 @@ export function DashboardView() {
     },
   ];
 
-  const { data, isLoading, isError } = useQuery<DashboardData>({
+  const { data, isLoading, isError, error } = useQuery<DashboardData>({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard");
-      if (!res.ok) throw new Error("Failed to fetch dashboard");
-      return res.json();
+      return fetchJson<DashboardData>("/api/dashboard");
     },
     refetchInterval: 30000,
+    retry: 2,
   });
 
   if (isLoading) return <DashboardSkeleton />;
@@ -148,6 +149,17 @@ export function DashboardView() {
     return (
       <Card className="p-6 text-center">
         <p className="text-muted-foreground">{t("dashboard.failedToLoad")}</p>
+        {error && (
+          <p className="text-xs text-muted-foreground mt-2">{error.message}</p>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={() => window.location.reload()}
+        >
+          {t("common.retry") || "Retry"}
+        </Button>
       </Card>
     );
   }
@@ -166,7 +178,7 @@ export function DashboardView() {
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white shrink-0">
-              <Shield className="h-5 w-5" />
+              <Fingerprint className="h-5 w-5" />
             </div>
             <div>
               <p className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">

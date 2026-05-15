@@ -52,6 +52,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/hooks/use-translation";
 import { useAppStore } from "@/store/app-store";
+import { fetchJson } from "@/lib/utils";
 import type { Lang } from "@/lib/i18n";
 
 export const CURRENCIES = [
@@ -105,9 +106,7 @@ function LicenseSection() {
   const { data: licenseStatus, isLoading } = useQuery<LicenseStatusResponse>({
     queryKey: ["license-status"],
     queryFn: async () => {
-      const res = await fetch("/api/license");
-      if (!res.ok) throw new Error("Failed to fetch license status");
-      return res.json();
+      return fetchJson<LicenseStatusResponse>("/api/license");
     },
     staleTime: 30000,
   });
@@ -116,16 +115,11 @@ function LicenseSection() {
     if (!licenseKey.trim()) return;
     setActivating(true);
     try {
-      const res = await fetch("/api/license/activate", {
+      const data = await fetchJson<{ error?: string; message?: string }>("/api/license/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ licenseKey: licenseKey.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: t("common.error"), description: data.error, variant: "destructive" });
-        return;
-      }
       toast({ title: t("license.activated"), description: data.message });
       setLicenseKey("");
       queryClient.invalidateQueries({ queryKey: ["license-status"] });
@@ -316,9 +310,7 @@ export function SettingsView() {
   const { data, isLoading } = useQuery<SettingsData>({
     queryKey: ["settings"],
     queryFn: async () => {
-      const res = await fetch("/api/settings");
-      if (!res.ok) throw new Error("Failed to fetch settings");
-      return res.json();
+      return fetchJson<SettingsData>("/api/settings");
     },
   });
 
@@ -336,7 +328,7 @@ export function SettingsView() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/settings", {
+      return fetchJson("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -346,8 +338,6 @@ export function SettingsView() {
           companyNameAr,
         }),
       });
-      if (!res.ok) throw new Error("Failed to save settings");
-      return res.json();
     },
     onSuccess: () => {
       setLang(language as Lang);
@@ -390,15 +380,11 @@ export function SettingsView() {
     try {
       const fileContent = await selectedFile.text();
       const backupData = JSON.parse(fileContent);
-      const res = await fetch("/api/backup", {
+      const errorData = await fetchJson<{ error?: string }>("/api/backup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(backupData),
       });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to restore backup");
-      }
       // Invalidate all queries to refresh data
       await queryClient.invalidateQueries();
       toast({ title: t("backup.restored") });
@@ -454,7 +440,7 @@ export function SettingsView() {
               setCurrency(v);
               setStoreCurrency(v);
               // Auto-save currency change immediately
-              fetch("/api/settings", {
+              fetchJson("/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ currency: v }),
@@ -490,7 +476,7 @@ export function SettingsView() {
                 setLanguage(v);
                 setLang(v as Lang);
                 // Auto-save language change immediately
-                fetch("/api/settings", {
+                fetchJson("/api/settings", {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ lang: v }),

@@ -29,10 +29,16 @@ export async function GET() {
 // Default capabilities based on device type
 const defaultCapabilities: Record<string, string> = {
   "MB20": "fingerprint,face,palm,card,password",
+  "ProFace": "face,palm,card,password",
   "SpeedFace": "fingerprint,face,card",
+  "uFace": "fingerprint,face,card",
+  "G1": "fingerprint,face,card",
   "iFace": "fingerprint,face",
+  "FaceDepot": "face,card,password",
   "ZKTeco": "fingerprint,card,password",
   "inBio": "fingerprint,card,password",
+  "KSeries": "fingerprint,card,password",
+  "XSeries": "fingerprint,card,password",
   "ZK": "fingerprint,card,password",
 };
 
@@ -117,6 +123,8 @@ async function registerDeviceWithZK(device: {
   name: string;
   ip: string;
   port: number;
+  deviceModel?: string | null;
+  capabilities?: string | null;
 }) {
   try {
     await fetch("http://127.0.0.1:3003/api/devices", {
@@ -127,6 +135,8 @@ async function registerDeviceWithZK(device: {
         name: device.name,
         ip: device.ip,
         port: device.port,
+        deviceModel: device.deviceModel || undefined,
+        capabilities: device.capabilities ? device.capabilities.split(",").filter(Boolean) : undefined,
       }),
     });
     console.log(`[Devices] Registered ${device.name} with ZK sync service`);

@@ -82,6 +82,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/hooks/use-translation";
 import { useAppStore } from "@/store/app-store";
+import { fetchJson } from "@/lib/utils";
 
 // ─── Helpers ───
 function formatCurrency(amount: number, currency = "SAR"): string {
@@ -252,20 +253,20 @@ function EmployeeProfileDialog({
   const { data: fingerprintStatus } = useQuery<{ registeredIds: number[]; deviceCount: number }>({
     queryKey: ["fingerprint-status"],
     queryFn: async () => {
-      const res = await fetch("/api/fingerprint-status");
-      if (!res.ok) return { registeredIds: [], deviceCount: 0 };
-      return res.json();
+      try {
+        return await fetchJson<{ registeredIds: number[]; deviceCount: number }>("/api/fingerprint-status");
+      } catch {
+        return { registeredIds: [], deviceCount: 0 };
+      }
     },
     staleTime: 30000,
   });
 
-  const { data: profile, isLoading } = useQuery<EmployeeProfile>({
+  const { data: profile, isLoading } = useQuery<EmployeeProfile | null>({
     queryKey: ["employee-profile", employeeId],
     queryFn: async () => {
       if (!employeeId) return null;
-      const res = await fetch(`/api/employees/${employeeId}/profile`);
-      if (!res.ok) throw new Error("Failed to fetch profile");
-      return res.json();
+      return fetchJson<EmployeeProfile>(`/api/employees/${employeeId}/profile`);
     },
     enabled: !!employeeId && open,
   });
@@ -276,6 +277,8 @@ function EmployeeProfileDialog({
   const summary = profile?.attendanceSummary;
   const recentAtt = profile?.recentAttendance ?? [];
   const shiftInfo = profile?.shiftInfo;
+  const customAllowances = profile?.customAllowances ?? [];
+  const customDeductions = profile?.customDeductions ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -651,9 +654,7 @@ export function EmployeesView() {
         page: "1",
         limit: "9999",
       });
-      const res = await fetch(`/api/employees?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch employees");
-      return res.json();
+      return fetchJson<EmployeesResponse>(`/api/employees?${params}`);
     },
   });
 
@@ -698,18 +699,18 @@ export function EmployeesView() {
   const { data: shifts = [] } = useQuery<Shift[]>({
     queryKey: ["shifts-list"],
     queryFn: async () => {
-      const res = await fetch("/api/shifts");
-      if (!res.ok) throw new Error("Failed to fetch shifts");
-      return res.json();
+      return fetchJson<Shift[]>("/api/shifts");
     },
   });
 
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["departments-list"],
     queryFn: async () => {
-      const res = await fetch("/api/departments");
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        return await fetchJson<Department[]>("/api/departments");
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -717,9 +718,11 @@ export function EmployeesView() {
   const { data: fingerprintStatus } = useQuery<{ registeredIds: number[]; deviceCount: number }>({
     queryKey: ["fingerprint-status"],
     queryFn: async () => {
-      const res = await fetch("/api/fingerprint-status");
-      if (!res.ok) return { registeredIds: [], deviceCount: 0 };
-      return res.json();
+      try {
+        return await fetchJson<{ registeredIds: number[]; deviceCount: number }>("/api/fingerprint-status");
+      } catch {
+        return { registeredIds: [], deviceCount: 0 };
+      }
     },
     staleTime: 30000, // cache for 30s
   });
@@ -749,7 +752,7 @@ export function EmployeesView() {
 
   const addMutation = useMutation({
     mutationFn: async (values: EmployeeFormValues) => {
-      const res = await fetch("/api/employees", {
+      return fetchJson("/api/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -759,11 +762,6 @@ export function EmployeesView() {
           fingerprintId: values.fingerprintId ?? null,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create employee");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -779,7 +777,7 @@ export function EmployeesView() {
 
   const editMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: EmployeeFormValues }) => {
-      const res = await fetch(`/api/employees/${id}`, {
+      return fetchJson(`/api/employees/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -789,11 +787,6 @@ export function EmployeesView() {
           fingerprintId: values.fingerprintId ?? null,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update employee");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -809,9 +802,7 @@ export function EmployeesView() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete employee");
-      return res.json();
+      return fetchJson(`/api/employees/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });

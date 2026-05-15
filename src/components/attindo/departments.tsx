@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/hooks/use-translation";
+import { fetchJson } from "@/lib/utils";
 
 interface Department {
   id: string;
@@ -90,9 +91,7 @@ export function DepartmentsView() {
   const { data: departments = [], isLoading } = useQuery<Department[]>({
     queryKey: ["departments"],
     queryFn: async () => {
-      const res = await fetch("/api/departments");
-      if (!res.ok) throw new Error("Failed to fetch departments");
-      return res.json();
+      return fetchJson<Department[]>("/api/departments");
     },
   });
 
@@ -110,16 +109,11 @@ export function DepartmentsView() {
   // Mutations
   const addMutation = useMutation({
     mutationFn: async (values: DepartmentFormValues) => {
-      const res = await fetch("/api/departments", {
+      return fetchJson("/api/departments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create department");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["departments"] });
@@ -135,16 +129,11 @@ export function DepartmentsView() {
 
   const editMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: DepartmentFormValues }) => {
-      const res = await fetch(`/api/departments/${id}`, {
+      return fetchJson(`/api/departments/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update department");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["departments"] });
@@ -160,9 +149,7 @@ export function DepartmentsView() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/departments/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete department");
-      return res.json();
+      return fetchJson(`/api/departments/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["departments"] });

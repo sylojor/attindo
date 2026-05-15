@@ -293,7 +293,6 @@ export async function POST(request: NextRequest) {
 }
 
 // Sanitize data by removing relation fields that Prisma doesn't expect on create
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function sanitize(item: any): any {
   if (!item || typeof item !== "object") return item;
 

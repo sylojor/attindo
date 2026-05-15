@@ -4,24 +4,29 @@
  * Official ZKTeco/ZK multi-biometric device communication service.
  * Uses node-zklib for real TCP communication on port 4370.
  * 
- * Supported Devices:
+ * Officially Supported Devices:
  * - ZKTeco MB20 (Multi-Biometric: Fingerprint + Face + Palm + Card + Password)
- * - ZKTeco SpeedFace-V4L, SpeedFace-V5L (Fingerprint + Face + Card)
- * - ZKTeco iFace302, iFace402 (Fingerprint + Face)
- * - ZKTeco F18, F22, F22-Pro (Fingerprint)
- * - ZKTeco inBio160, inBio260, inBio460 (Fingerprint)
- * - ZKTeco K14, K20, K40 (Fingerprint)
- * - ZK T4-C, T5-C (Fingerprint)
+ * - ZKTeco ProFace X/XD (Face + Palm + Card + Password)
+ * - ZKTeco SpeedFace-V4L, SpeedFace-V5L, SpeedFace-V5L-Pro (Fingerprint + Face + Card)
+ * - ZKTeco uFace202/302/402 (Fingerprint + Face + Card)
+ * - ZKTeco G1/G1-Pro (Fingerprint + Face + Card)
+ * - ZKTeco iFace302/402 (Fingerprint + Face)
+ * - ZKTeco FaceDepot7E/10E (Face + Card + Password)
+ * - ZKTeco F16, F18, F22, F22-Pro (Fingerprint + Card + Password)
+ * - ZKTeco inBio160/260/460 (Fingerprint + Card + Password)
+ * - ZKTeco K14/K20/K40 (Fingerprint + Card + Password)
+ * - ZKTeco X6/X7/X8 (Fingerprint + Card + Password)
+ * - ZKTeco T4-C, T5-C, TF1700 (Fingerprint + Card + Password)
  * - And all ZKTeco devices using the ZK communication protocol (port 4370)
  * 
- * BioTime Replacement Features:
+ * Features:
  * - Real device connection/disconnection
  * - Attendance log download (with auto-clear)
  * - Employee upload/delete on device
  * - Device info reading (serial, firmware, users, logs count)
  * - Multi-biometric capability auto-detection (fingerprint, face, palm, card, password)
  * - Biometric template count reporting (finger, face, palm)
- * - MB20 verify mode categorization (face vs fingerprint vs palm vs card vs password)
+ * - Full verify mode categorization for all multi-biometric devices
  * - Device restart
  * - Time synchronization
  * - Live attendance monitoring via Socket.io
@@ -111,8 +116,33 @@ function detectDeviceCapabilities(deviceName: string | null): { model: string; c
     return { model: "MB20", capabilities: ["fingerprint", "face", "palm", "card", "password"] };
   }
 
-  // SpeedFace series - fingerprint + face + card
-  if (name.includes("SPEEDFACE") || name.includes("SF-") || name.includes("speedface")) {
+  // ProFace X - face + palm + card + password (advanced face terminal)
+  if (name.includes("PROFACE") || name.includes("PRO-FACE")) {
+    return { model: "ProFace", capabilities: ["face", "palm", "card", "password"] };
+  }
+
+  // uFace series - fingerprint + face + card
+  if (name.includes("UFACE") || name.includes("U-FACE")) {
+    return { model: "uFace", capabilities: ["fingerprint", "face", "card"] };
+  }
+
+  // G1 series - fingerprint + face + card
+  if (name.includes("G1") || name.includes("G1-PRO")) {
+    return { model: "G1", capabilities: ["fingerprint", "face", "card"] };
+  }
+
+  // SpeedFace-V5L Pro - supports palm (check V5L before generic SpeedFace)
+  if (name.includes("V5L") && name.includes("PRO")) {
+    return { model: "SpeedFace-V5L-Pro", capabilities: ["fingerprint", "face", "palm", "card"] };
+  }
+
+  // SpeedFace-V4L / V5L - fingerprint + face + card (check specific models before generic)
+  if (name.includes("V4L") || name.includes("V5L")) {
+    return { model: "SpeedFace-V", capabilities: ["fingerprint", "face", "card"] };
+  }
+
+  // SpeedFace series (generic) - fingerprint + face + card
+  if (name.includes("SPEEDFACE") || name.includes("SF-")) {
     return { model: "SpeedFace", capabilities: ["fingerprint", "face", "card"] };
   }
 
@@ -121,29 +151,39 @@ function detectDeviceCapabilities(deviceName: string | null): { model: string; c
     return { model: "iFace", capabilities: ["fingerprint", "face"] };
   }
 
-  // FaceDepot series - face only
+  // FaceDepot series - face + card + password
   if (name.includes("FACEDEPOT") || name.includes("FACE-DEPOT")) {
     return { model: "FaceDepot", capabilities: ["face", "card", "password"] };
   }
 
-  // SpeedFace-V4L / V5L - some models support palm
-  if (name.includes("V4L") || name.includes("V5L")) {
-    return { model: "SpeedFace-V", capabilities: ["fingerprint", "face", "card"] };
-  }
-
-  // inBio series - fingerprint + card
+  // inBio series - fingerprint + card + password
   if (name.includes("INBIO")) {
     return { model: "inBio", capabilities: ["fingerprint", "card", "password"] };
   }
 
-  // F-series - fingerprint only
-  if (name.includes("F18") || name.includes("F22") || name.includes("F16")) {
+  // F-series - fingerprint + card + password
+  if (name.includes("F18") || name.includes("F22") || name.includes("F16") || name.includes("F22-PRO")) {
     return { model: "F-Series", capabilities: ["fingerprint", "card", "password"] };
   }
 
-  // K-series - fingerprint only
+  // K-series - fingerprint + card + password
   if (name.includes("K14") || name.includes("K20") || name.includes("K40")) {
     return { model: "K-Series", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // X-series access control - fingerprint + card
+  if (name.includes("X6") || name.includes("X7") || name.includes("X8")) {
+    return { model: "X-Series", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // T4-C/T5-C series
+  if (name.includes("T4-C") || name.includes("T5-C") || name.includes("T4C") || name.includes("T5C")) {
+    return { model: "T-Series", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // TF1700 - fingerprint + card
+  if (name.includes("TF1700") || name.includes("TF-1700")) {
+    return { model: "TF1700", capabilities: ["fingerprint", "card", "password"] };
   }
 
   // Default: assume basic fingerprint support
@@ -258,6 +298,8 @@ async function connectAndReadInfo(device: ZKDevice): Promise<DeviceInfo> {
     let userCount = 0;
     let logCount = 0;
     let fingerCount = 0;
+    let faceCount = 0;
+    let palmCount = 0;
     try {
       const countInfo = await zk.getCountById();
       if (countInfo) {
@@ -265,35 +307,12 @@ async function connectAndReadInfo(device: ZKDevice): Promise<DeviceInfo> {
         logCount = countInfo.logCounts || 0;
         // node-zklib may return fingerCount in some device models
         fingerCount = countInfo.fingerCount || countInfo.fingerCounts || 0;
+        // Face and palm template counts (available on advanced devices)
+        faceCount = countInfo.faceCount || countInfo.faceCounts || 0;
+        palmCount = countInfo.palmCount || countInfo.palmCounts || 0;
       }
     } catch {
       // Some devices don't support getCountById
-    }
-
-    // Face and palm template counts
-    // Note: node-zklib does not directly support reading face/palm template counts.
-    // These may be available via extended ZK commands but not in the standard library.
-    // We attempt to read them gracefully and fallback to 0.
-    let faceCount = 0;
-    let palmCount = 0;
-
-    // Try reading face count - some advanced ZK devices support this via extended commands
-    try {
-      // Attempt to get face template count via the count structure
-      const extendedCount = await zk.getCountById();
-      if (extendedCount) {
-        faceCount = extendedCount.faceCount || extendedCount.faceCounts || 0;
-        palmCount = extendedCount.palmCount || extendedCount.palmCounts || 0;
-      }
-    } catch {
-      // Face/palm count not supported by this device or library
-    }
-
-    // If fingerCount is still 0 but we have userCount, estimate finger templates
-    // (most fingerprint-only devices register 1-2 fingers per user)
-    if (fingerCount === 0 && userCount > 0) {
-      // We can't reliably estimate, so leave as 0
-      fingerCount = 0;
     }
 
     // Get MAC address

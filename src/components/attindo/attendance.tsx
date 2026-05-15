@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { useTranslation } from "@/hooks/use-translation";
+import { fetchJson } from "@/lib/utils";
 
 interface AttendanceLog {
   id: string;
@@ -87,28 +88,30 @@ export function AttendanceView() {
       if (employeeFilter && employeeFilter !== "all") params.set("employeeId", employeeFilter);
       if (deviceFilter && deviceFilter !== "all") params.set("deviceId", deviceFilter);
       if (verifyModeFilter && verifyModeFilter !== "all") params.set("verifyMode", verifyModeFilter);
-      const res = await fetch(`/api/attendance?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch attendance");
-      return res.json();
+      return fetchJson<AttendanceResponse>(`/api/attendance?${params}`);
     },
   });
 
   const { data: employeeOptions = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["employees-filter"],
     queryFn: async () => {
-      const res = await fetch("/api/employees?limit=100&isActive=true");
-      if (!res.ok) return [];
-      const d = await res.json();
-      return d.employees || [];
+      try {
+        const d = await fetchJson<{ employees: EmployeeOption[] }>("/api/employees?limit=100&isActive=true");
+        return d.employees || [];
+      } catch {
+        return [];
+      }
     },
   });
 
   const { data: deviceOptions = [] } = useQuery<DeviceOption[]>({
     queryKey: ["devices-filter"],
     queryFn: async () => {
-      const res = await fetch("/api/devices");
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        return await fetchJson<DeviceOption[]>("/api/devices");
+      } catch {
+        return [];
+      }
     },
   });
 

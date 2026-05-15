@@ -79,6 +79,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/hooks/use-translation";
 import { useAppStore } from "@/store/app-store";
+import { fetchJson } from "@/lib/utils";
 
 // ─── Helpers ───
 function formatCurrency(amount: number, currency = "SAR"): string {
@@ -384,19 +385,19 @@ function LoansTab() {
   const { data: loans = [], isLoading } = useQuery<LoanItem[]>({
     queryKey: ["loans"],
     queryFn: async () => {
-      const res = await fetch("/api/payroll/loans");
-      if (!res.ok) throw new Error("Failed to fetch loans");
-      return res.json();
+      return fetchJson<LoanItem[]>("/api/payroll/loans");
     },
   });
 
   const { data: employees = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["payroll-employees-loans"],
     queryFn: async () => {
-      const res = await fetch("/api/employees?limit=100&isActive=true");
-      if (!res.ok) return [];
-      const d = await res.json();
-      return d.employees || [];
+      try {
+        const d = await fetchJson<{ employees: EmployeeOption[] }>("/api/employees?limit=100&isActive=true");
+        return d.employees || [];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -417,16 +418,11 @@ function LoansTab() {
 
   const addMutation = useMutation({
     mutationFn: async (values: LoanFormValues) => {
-      const res = await fetch("/api/payroll/loans", {
+      return fetchJson("/api/payroll/loans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create loan");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["loans"] });
@@ -441,9 +437,7 @@ function LoansTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/payroll/loans/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete loan");
-      return res.json();
+      return fetchJson(`/api/payroll/loans/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["loans"] });
@@ -457,13 +451,11 @@ function LoansTab() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await fetch(`/api/payroll/loans/${id}`, {
+      return fetchJson(`/api/payroll/loans/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error("Failed to update loan status");
-      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["loans"] });
@@ -643,9 +635,11 @@ function PayrollLicenseGuard() {
   }>({
     queryKey: ["license-status"],
     queryFn: async () => {
-      const res = await fetch("/api/license");
-      if (!res.ok) return { payroll: { licensed: false } };
-      return res.json();
+      try {
+        return await fetchJson<{ payroll: { licensed: boolean } }>("/api/license");
+      } catch {
+        return { payroll: { licensed: false } };
+      }
     },
     staleTime: 30000,
   });
@@ -688,10 +682,12 @@ export function PayrollView() {
   const { data: employees = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["payroll-employees"],
     queryFn: async () => {
-      const res = await fetch("/api/employees?limit=100&isActive=true");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.employees || [];
+      try {
+        const data = await fetchJson<{ employees: EmployeeOption[] }>("/api/employees?limit=100&isActive=true");
+        return data.employees || [];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -699,9 +695,7 @@ export function PayrollView() {
   const { data: salaryStructures = [], isLoading: salaryLoading } = useQuery<SalaryStructure[]>({
     queryKey: ["salary-structures"],
     queryFn: async () => {
-      const res = await fetch("/api/payroll/salary-structures");
-      if (!res.ok) throw new Error("Failed to fetch salary structures");
-      return res.json();
+      return fetchJson<SalaryStructure[]>("/api/payroll/salary-structures");
     },
   });
 
@@ -709,9 +703,7 @@ export function PayrollView() {
   const { data: periods = [], isLoading: periodsLoading } = useQuery<PayrollPeriod[]>({
     queryKey: ["payroll-periods"],
     queryFn: async () => {
-      const res = await fetch("/api/payroll/periods");
-      if (!res.ok) throw new Error("Failed to fetch payroll periods");
-      return res.json();
+      return fetchJson<PayrollPeriod[]>("/api/payroll/periods");
     },
   });
 
@@ -727,9 +719,7 @@ export function PayrollView() {
       if (selectedPeriodId && selectedPeriodId !== "all") {
         params.set("payrollPeriodId", selectedPeriodId);
       }
-      const res = await fetch(`/api/payroll/payslips?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch payslips");
-      return res.json();
+      return fetchJson<{ payslips: PaySlipListItem[]; total: number }>(`/api/payroll/payslips?${params}`);
     },
   });
 
@@ -742,9 +732,7 @@ export function PayrollView() {
       if (allowanceEmpFilter && allowanceEmpFilter !== "all") {
         params.set("employeeId", allowanceEmpFilter);
       }
-      const res = await fetch(`/api/payroll/allowances?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch allowances");
-      return res.json();
+      return fetchJson<AllowanceItem[]>(`/api/payroll/allowances?${params}`);
     },
   });
 
@@ -757,9 +745,7 @@ export function PayrollView() {
       if (deductionEmpFilter && deductionEmpFilter !== "all") {
         params.set("employeeId", deductionEmpFilter);
       }
-      const res = await fetch(`/api/payroll/deductions?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch deductions");
-      return res.json();
+      return fetchJson<DeductionItem[]>(`/api/payroll/deductions?${params}`);
     },
   });
 
@@ -774,13 +760,11 @@ export function PayrollView() {
 
   const [payslipDetailOpen, setPayslipDetailOpen] = useState(false);
   const [selectedPayslipId, setSelectedPayslipId] = useState<string | null>(null);
-  const { data: payslipDetail, isLoading: payslipDetailLoading } = useQuery<PaySlipDetail>({
+  const { data: payslipDetail, isLoading: payslipDetailLoading } = useQuery<PaySlipDetail | null>({
     queryKey: ["payslip-detail", selectedPayslipId],
     queryFn: async () => {
       if (!selectedPayslipId) return null;
-      const res = await fetch(`/api/payroll/payslips/${selectedPayslipId}`);
-      if (!res.ok) throw new Error("Failed to fetch payslip");
-      return res.json();
+      return fetchJson<PaySlipDetail>(`/api/payroll/payslips/${selectedPayslipId}`);
     },
     enabled: !!selectedPayslipId,
   });
@@ -848,16 +832,11 @@ export function PayrollView() {
   // ─── Salary Mutations ───
   const salaryMutation = useMutation({
     mutationFn: async (values: SalaryFormValues) => {
-      const res = await fetch("/api/payroll/salary-structures", {
+      return fetchJson("/api/payroll/salary-structures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save salary structure");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
@@ -873,11 +852,9 @@ export function PayrollView() {
 
   const deleteSalaryMutation = useMutation({
     mutationFn: async (employeeId: string) => {
-      const res = await fetch(`/api/payroll/salary-structures/${employeeId}`, {
+      return fetchJson(`/api/payroll/salary-structures/${employeeId}`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("Failed to delete salary structure");
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salary-structures"] });
@@ -923,7 +900,7 @@ export function PayrollView() {
           const deductionPerLate = basicSalary / 30 / 8 * 0.5;
           const deductionPerAbsent = basicSalary / 30;
 
-          return fetch("/api/payroll/salary-structures", {
+          return fetchJson("/api/payroll/salary-structures", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -958,16 +935,11 @@ export function PayrollView() {
   // ─── Period Mutations ───
   const createPeriodMutation = useMutation({
     mutationFn: async (values: PeriodFormValues) => {
-      const res = await fetch("/api/payroll/periods", {
+      return fetchJson("/api/payroll/periods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create payroll period");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
@@ -983,16 +955,11 @@ export function PayrollView() {
   const processPayrollMutation = useMutation({
     mutationFn: async (periodId: string) => {
       setProcessingPeriodId(periodId);
-      const res = await fetch("/api/payroll/process", {
+      return fetchJson<{ summary?: { processedCount?: number } }>("/api/payroll/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payrollPeriodId: periodId }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to process payroll");
-      }
-      return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
@@ -1011,16 +978,11 @@ export function PayrollView() {
 
   const approvePeriodMutation = useMutation({
     mutationFn: async (periodId: string) => {
-      const res = await fetch(`/api/payroll/periods/${periodId}`, {
+      return fetchJson(`/api/payroll/periods/${periodId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "approved" }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to approve payroll period");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
@@ -1033,14 +995,9 @@ export function PayrollView() {
 
   const deletePeriodMutation = useMutation({
     mutationFn: async (periodId: string) => {
-      const res = await fetch(`/api/payroll/periods/${periodId}`, {
+      return fetchJson(`/api/payroll/periods/${periodId}`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete payroll period");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-periods"] });
@@ -1055,13 +1012,11 @@ export function PayrollView() {
   // ─── Payslip Mutations ───
   const markPaidMutation = useMutation({
     mutationFn: async (payslipId: string) => {
-      const res = await fetch(`/api/payroll/payslips/${payslipId}`, {
+      return fetchJson(`/api/payroll/payslips/${payslipId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "paid" }),
       });
-      if (!res.ok) throw new Error("Failed to mark as paid");
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payslips"] });
@@ -1078,7 +1033,7 @@ export function PayrollView() {
   // ─── Allowance Mutations ───
   const createAllowanceMutation = useMutation({
     mutationFn: async (values: AllowanceFormValues) => {
-      const res = await fetch("/api/payroll/allowances", {
+      return fetchJson("/api/payroll/allowances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1087,11 +1042,6 @@ export function PayrollView() {
           endDate: values.endDate || undefined,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create allowance");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allowances"] });
@@ -1106,9 +1056,7 @@ export function PayrollView() {
 
   const deleteAllowanceMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/payroll/allowances/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete allowance");
-      return res.json();
+      return fetchJson(`/api/payroll/allowances/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allowances"] });
@@ -1123,7 +1071,7 @@ export function PayrollView() {
   // ─── Deduction Mutations ───
   const createDeductionMutation = useMutation({
     mutationFn: async (values: DeductionFormValues) => {
-      const res = await fetch("/api/payroll/deductions", {
+      return fetchJson("/api/payroll/deductions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1132,11 +1080,6 @@ export function PayrollView() {
           endDate: values.endDate || undefined,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create deduction");
-      }
-      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deductions"] });
@@ -1151,9 +1094,7 @@ export function PayrollView() {
 
   const deleteDeductionMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/payroll/deductions/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete deduction");
-      return res.json();
+      return fetchJson(`/api/payroll/deductions/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deductions"] });
@@ -1348,7 +1289,7 @@ export function PayrollView() {
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             <Badge variant="outline" className="text-xs">
-                              {emp.department?.name || "N/A"}
+                              {emp.department || "N/A"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right text-sm">

@@ -17,7 +17,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     "app.version": "الإصدار",
     "live": "مباشر",
     "offline": "غير متصل",
-    "seed.data": "بيانات تجريبية",
     "syncing": "مزامنة...",
     "sync.completed": "تمت المزامنة",
     "copyright": "© 2024-2025 أتندو — رواتب، حضور وموارد بشرية • دعم رسمي ZKTeco",
@@ -27,8 +26,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "dashboard.activeDevices": "الأجهزة النشطة",
     "dashboard.todayAttendance": "حضور اليوم",
     "dashboard.lateArrivals": "تأخيرات",
-    "dashboard.zkBanner.title": "دعم رسمي لبروتوكول ZKTeco ZK",
-    "dashboard.zkBanner.desc": "أتندو بديل BioTime — مزامنة أجهزة البصمة في الوقت الفعلي، إدارة الحضور، ومعالجة الرواتب في تطبيق واحد",
+    "dashboard.zkBanner.title": "دعم رسمي لأجهزة ZKTeco",
+    "dashboard.zkBanner.desc": "مزامنة أجهزة البصمة في الوقت الفعلي عبر بروتوكول ZK، إدارة الحضور، ومعالجة الرواتب في تطبيق واحد",
     "dashboard.attendanceOverview": "نظرة عامة على الحضور",
     "dashboard.last7days": "بيانات حضور آخر 7 أيام",
     "dashboard.departments": "الأقسام",
@@ -169,7 +168,7 @@ export const translations: Record<Lang, Record<string, string>> = {
 
     // ─── Devices ───
     "devices.title": "أجهزة ZKTeco",
-    "devices.subtitle": "{count}/{max} جهاز — دعم رسمي لبروتوكول ZK (يشمل MB20)",
+    "devices.subtitle": "{count}/{max} جهاز — دعم رسمي لبروتوكول ZKTeco ZK",
     "devices.syncAll": "مزامنة الكل",
     "devices.add": "إضافة جهاز",
     "devices.addZKTeco": "إضافة جهاز ZKTeco",
@@ -209,8 +208,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "devices.deviceDeleted": "تم حذف الجهاز",
     "devices.deviceDetails": "تفاصيل الجهاز",
     "devices.deviceUsers": "مستخدمو الجهاز",
-    "devices.zkBanner.title": "دعم رسمي لبروتوكول ZKTeco ZK — بديل BioTime",
-    "devices.zkBanner.compat": "متوافق مع: MB20 (متعدد القياسات)، F18، F22، SpeedFace، iFace، inBio، K-Series، ZK — جميع الأجهزة باستخدام بروتوكول ZK على المنفذ 4370",
+    "devices.zkBanner.title": "دعم رسمي لأجهزة ZKTeco",
+    "devices.zkBanner.compat": "يدعم رسمياً: MB20 (متعدد القياسات)، ProFace X، SpeedFace، uFace، G1، iFace، FaceDepot، F-Series، inBio، K-Series، X-Series، و جميع أجهزة ZKTeco باستخدام بروتوكول ZK على المنفذ 4370",
     "devices.zkBanner.verification": "التحقق:",
 
     // ─── Attendance ───
@@ -396,7 +395,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     "payroll.deductionDeleted": "تم حذف الخصم",
     "payroll.filterEmployee": "تصفية حسب الموظف",
     "payroll.allEmployees": "جميع الموظفين",
-    "payroll.noEmployees": "لا يوجد موظفون. أضف بيانات تجريبية أولاً.",
+    "payroll.noEmployees": "لا يوجد موظفون. أضف موظفين أولاً.",
 
     // ─── Loans ───
     "loans.title": "السلف والقروض",
@@ -562,7 +561,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     "app.version": "Version",
     "live": "Live",
     "offline": "Offline",
-    "seed.data": "Seed Data",
     "syncing": "Syncing...",
     "sync.completed": "Sync completed",
     "copyright": "© 2024-2025 Attindo — HR, Payroll & Attendance • Official ZKTeco Support",
@@ -572,8 +570,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "dashboard.activeDevices": "Active Devices",
     "dashboard.todayAttendance": "Today's Attendance",
     "dashboard.lateArrivals": "Late Arrivals",
-    "dashboard.zkBanner.title": "Official ZKTeco ZK Protocol Support",
-    "dashboard.zkBanner.desc": "Attindo replaces BioTime — Real-time fingerprint device sync, attendance management, and payroll processing in one app",
+    "dashboard.zkBanner.title": "Official ZKTeco Device Support",
+    "dashboard.zkBanner.desc": "Real-time fingerprint device sync via ZK protocol, attendance management, and payroll processing in one app",
     "dashboard.attendanceOverview": "Attendance Overview",
     "dashboard.last7days": "Last 7 days attendance data",
     "dashboard.departments": "Departments",
@@ -714,7 +712,7 @@ export const translations: Record<Lang, Record<string, string>> = {
 
     // ─── Devices ───
     "devices.title": "ZKTeco Devices",
-    "devices.subtitle": "{count}/{max} Devices — Official ZKTeco ZK Protocol Support (incl. MB20)",
+    "devices.subtitle": "{count}/{max} Devices — Official ZKTeco ZK Protocol Support",
     "devices.syncAll": "Sync All",
     "devices.add": "Add Device",
     "devices.addZKTeco": "Add ZKTeco Device",
@@ -754,8 +752,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "devices.deviceDeleted": "Device deleted",
     "devices.deviceDetails": "Device Details",
     "devices.deviceUsers": "Device Users",
-    "devices.zkBanner.title": "Official ZKTeco ZK Protocol Support — BioTime Replacement",
-    "devices.zkBanner.compat": "Compatible with: MB20 (Multi-Biometric), F18, F22, SpeedFace, iFace, inBio, K-Series, ZK — All devices using ZK TCP protocol on port 4370",
+    "devices.zkBanner.title": "Official ZKTeco Device Support",
+    "devices.zkBanner.compat": "Officially supports: MB20 (Multi-Biometric), ProFace X, SpeedFace, uFace, G1, iFace, FaceDepot, F-Series, inBio, K-Series, X-Series, and all ZKTeco devices using ZK TCP protocol on port 4370",
     "devices.zkBanner.verification": "Verification:",
 
     // ─── Attendance ───
@@ -941,7 +939,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     "payroll.deductionDeleted": "Deduction deleted",
     "payroll.filterEmployee": "Filter by employee",
     "payroll.allEmployees": "All Employees",
-    "payroll.noEmployees": "No employees found. Seed data first.",
+    "payroll.noEmployees": "No employees found. Add employees first.",
 
     // ─── Loans ───
     "loans.title": "Loans / Advances",

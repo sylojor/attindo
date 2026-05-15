@@ -1,0 +1,63 @@
+appId: com.attindo.desktop
+productName: Attindo
+copyright: Copyright © 2024-2025 Attindo. All rights reserved.
+directories:
+  output: release
+  buildResources: build-resources
+files:
+  - electron/main.js
+  - electron/preload.js
+  - package.json
+  - "!node_modules"
+extraResources:
+  - from: .next/standalone
+    to: standalone
+    filter:
+      - "**/*"
+  - from: .next/standalone/node_modules
+    to: standalone/node_modules
+    filter:
+      - "**/*"
+  - from: prisma
+    to: prisma
+    filter:
+      - schema.prisma
+  - from: build-resources/db/template.db
+    to: db/template.db
+  - from: public/logo.png
+    to: logo.png
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/sharp/**/*"
+  - "**/node_modules/@img/**/*"
+  - "**/node_modules/.prisma/**/*"
+  - "**/node_modules/@prisma/engines/**/*"
+  - "**/node_modules/@prisma/client/**/*"
+win:
+  icon: build-resources/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Attindo-Setup-${version}.${ext}
+  signAndEditExecutable: false
+  forceCodeSigning: false
+  verifyUpdateCodeSignature: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Attindo
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  installerLanguages:
+    - en
+    - ar
+  language: 1033
+  unicode: true
+  warningsAsErrors: false
+  differentialPackage: false
