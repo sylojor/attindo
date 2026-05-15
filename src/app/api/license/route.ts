@@ -16,12 +16,12 @@ export async function GET() {
       (l) => l.type === "payroll" || l.type === "full"
     );
 
-    // Count employees with fingerprint IDs
+    // Count active employees with fingerprint IDs
     const employeesWithFingerprints = await db.employee.count({
-      where: { fingerprintId: { not: null } },
+      where: { fingerprintId: { not: null }, isActive: true },
     });
 
-    const FREE_FINGERPRINT_LIMIT = 4;
+    const FREE_FINGERPRINT_LIMIT = 50;
 
     // Determine max fingerprints allowed
     let maxFingerprints = FREE_FINGERPRINT_LIMIT;

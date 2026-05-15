@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     let assignedFingerprintId = fingerprintId;
     if (assignedFingerprintId === undefined || assignedFingerprintId === null) {
       const maxFingerprint = await db.employee.findMany({
-        where: { fingerprintId: { not: null } },
+        where: { fingerprintId: { not: null }, isActive: true },
         select: { fingerprintId: true },
         orderBy: { fingerprintId: "desc" },
         take: 1,
@@ -112,9 +112,9 @@ export async function POST(request: NextRequest) {
           ? maxFingerprint[0].fingerprintId + 1
           : 1;
     } else {
-      // Check fingerprintId uniqueness
+      // Check fingerprintId uniqueness (only among active employees)
       const existingFingerprint = await db.employee.findFirst({
-        where: { fingerprintId: assignedFingerprintId },
+        where: { fingerprintId: assignedFingerprintId, isActive: true },
       });
       if (existingFingerprint) {
         return NextResponse.json(
@@ -126,9 +126,9 @@ export async function POST(request: NextRequest) {
 
     // License check: fingerprint limit
     if (assignedFingerprintId !== null && assignedFingerprintId !== undefined) {
-      const FREE_FINGERPRINT_LIMIT = 4;
+      const FREE_FINGERPRINT_LIMIT = 50;
       const employeesWithFingerprints = await db.employee.count({
-        where: { fingerprintId: { not: null } },
+        where: { fingerprintId: { not: null }, isActive: true },
       });
 
       if (employeesWithFingerprints >= FREE_FINGERPRINT_LIMIT) {

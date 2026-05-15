@@ -1,6 +1,6 @@
 {
   "name": "attindo",
-  "version": "2.1.9",
+  "version": "2.2.0",
   "description": "Attindo - Professional HR, Payroll & Attendance Management System with ZKTeco Fingerprint Device Support",
   "main": "electron/main.js",
   "author": "Attindo",
@@ -19,7 +19,6 @@
     "dist": "bun run build && electron-builder --win --publish never",
     "dist:skip-build": "electron-builder --win --publish never -c.npmRebuild=false"
   },
-
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

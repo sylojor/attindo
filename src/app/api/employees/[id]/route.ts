@@ -68,10 +68,10 @@ export async function PUT(
       }
     }
 
-    // If fingerprintId is being changed, check uniqueness
+    // If fingerprintId is being changed, check uniqueness (only among active employees)
     if (fingerprintId !== undefined && fingerprintId !== existing.fingerprintId) {
       const duplicateFingerprint = await db.employee.findFirst({
-        where: { fingerprintId, id: { not: id } },
+        where: { fingerprintId, id: { not: id }, isActive: true },
       });
       if (duplicateFingerprint) {
         return NextResponse.json(
@@ -115,7 +115,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/employees/[id] - Soft delete (set isActive = false)
+// DELETE /api/employees/[id] - Hard delete (remove from database)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -128,17 +128,24 @@ export async function DELETE(
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
 
-    const employee = await db.employee.update({
-      where: { id },
-      data: { isActive: false },
-      include: {
-        department: true,
-      },
-    });
+    // Delete related records first to avoid foreign key constraint violations
+    await db.attendanceLog.deleteMany({ where: { employeeId: id } });
+    await db.schedule.deleteMany({ where: { employeeId: id } });
+    await db.deviceEmployee.deleteMany({ where: { employeeId: id } });
+    await db.allowance.deleteMany({ where: { employeeId: id } });
+    await db.deduction.deleteMany({ where: { employeeId: id } });
+    await db.loan.deleteMany({ where: { employeeId: id } });
+    await db.paySlip.deleteMany({ where: { employeeId: id } });
+    const salaryStructure = await db.salaryStructure.findUnique({ where: { employeeId: id } });
+    if (salaryStructure) {
+      await db.salaryStructure.delete({ where: { employeeId: id } });
+    }
+
+    // Now delete the employee
+    await db.employee.delete({ where: { id } });
 
     return NextResponse.json({
-      message: "Employee deactivated successfully",
-      employee,
+      message: "Employee deleted successfully",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to delete employee";

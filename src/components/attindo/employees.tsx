@@ -808,10 +808,10 @@ export function EmployeesView() {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setDeleteId(null);
-      toast({ title: t("employees.deactivated") });
+      toast({ title: t("employees.deleted") });
     },
     onError: () => {
-      toast({ title: t("common.error"), description: "Failed to deactivate employee", variant: "destructive" });
+      toast({ title: t("common.error"), description: "Failed to delete employee", variant: "destructive" });
     },
   });
 
@@ -1305,8 +1305,8 @@ export function EmployeesView() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("employees.deactivate")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("employees.deactivateDesc")}</AlertDialogDescription>
+            <AlertDialogTitle>{t("employees.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("employees.deleteDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
