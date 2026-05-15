@@ -52,8 +52,17 @@ function setupDatabase() {
   const userDataPath = app.getPath('userData');
   const dbPath = path.join(userDataPath, 'attindo.db');
 
+  // Ensure the userData directory exists
+  if (!fs.existsSync(userDataPath)) {
+    try {
+      fs.mkdirSync(userDataPath, { recursive: true });
+    } catch (err) {
+      console.error('[Attindo] Failed to create userData directory:', err);
+    }
+  }
+
   // If the database already exists, nothing to do
-  if (fs.existsSync(dbPath)) {
+  if (fs.existsSync(dbPath) && fs.statSync(dbPath).size > 0) {
     console.log('[Attindo] Database already exists at:', dbPath);
     return;
   }
@@ -61,26 +70,49 @@ function setupDatabase() {
   // Copy the template database on first run
   const templatePath = path.join(process.resourcesPath, 'db', 'template.db');
 
-  if (fs.existsSync(templatePath)) {
+  if (fs.existsSync(templatePath) && fs.statSync(templatePath).size > 0) {
     try {
-      // Ensure the userData directory exists
-      if (!fs.existsSync(userDataPath)) {
-        fs.mkdirSync(userDataPath, { recursive: true });
-      }
       fs.copyFileSync(templatePath, dbPath);
       console.log('[Attindo] Database created from template at:', dbPath);
     } catch (err) {
       console.error('[Attindo] Failed to copy template database:', err);
+      // Fall through to create empty database
+      createEmptyDatabase(dbPath);
     }
   } else {
-    console.warn('[Attindo] Template database not found at:', templatePath);
-    // Create an empty file so Prisma can still operate
-    try {
-      fs.writeFileSync(dbPath, Buffer.alloc(0));
-      console.log('[Attindo] Created empty database at:', dbPath);
-    } catch (err) {
-      console.error('[Attindo] Failed to create empty database:', err);
+    console.warn('[Attindo] Template database not found or empty at:', templatePath);
+    createEmptyDatabase(dbPath);
+  }
+}
+
+function createEmptyDatabase(dbPath) {
+  try {
+    // Write a minimal valid SQLite header so Prisma can open it
+    // Then we'll run prisma db push to create the schema
+    fs.writeFileSync(dbPath, Buffer.alloc(0));
+    console.log('[Attindo] Created empty database at:', dbPath, '- will apply schema on first server start');
+
+    // Run prisma db push to apply schema to the new empty database
+    const schemaPath = path.join(process.resourcesPath, 'prisma', 'schema.prisma');
+    if (fs.existsSync(schemaPath)) {
+      const dbPathForPrisma = dbPath.replace(/\\/g, '/');
+      try {
+        const { execSync } = require('child_process');
+        execSync(`npx prisma db push --schema="${schemaPath}" --skip-generate`, {
+          env: {
+            ...process.env,
+            DATABASE_URL: `file:${dbPathForPrisma}`,
+          },
+          stdio: 'pipe',
+          timeout: 30000,
+        });
+        console.log('[Attindo] Schema applied to new database');
+      } catch (err) {
+        console.error('[Attindo] Failed to apply schema via prisma db push:', err.message || err);
+      }
     }
+  } catch (err) {
+    console.error('[Attindo] Failed to create empty database:', err);
   }
 }
 
@@ -103,19 +135,23 @@ function startServer() {
   const userDataPath = app.getPath('userData');
   const dbPath = path.join(userDataPath, 'attindo.db');
 
+  // Prisma SQLite requires forward slashes in the file URL, even on Windows
+  const dbPathForPrisma = dbPath.replace(/\\/g, '/');
+
   const env = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
     ELECTRON_NO_ASAR: '1',
     PORT: String(SERVER_PORT),
     HOSTNAME: 'localhost',
-    DATABASE_URL: `file:${dbPath}`,
+    DATABASE_URL: `file:${dbPathForPrisma}`,
   };
 
   serverProcess = spawn(process.execPath, [standalonePath], {
     cwd: path.dirname(standalonePath),
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
 
   serverProcess.stdout.on('data', (data) => {
@@ -185,27 +221,43 @@ function stopServer() {
   console.log('[Attindo] Stopping server process...');
 
   try {
-    serverProcess.kill('SIGTERM');
+    if (process.platform === 'win32') {
+      // On Windows, use taskkill to kill the process tree
+      const { execSync } = require('child_process');
+      try {
+        execSync(`taskkill /pid ${serverProcess.pid} /T /F`, { stdio: 'ignore' });
+      } catch (e) {
+        // Ignore errors - process might have already exited
+      }
+    } else {
+      serverProcess.kill('SIGTERM');
+    }
   } catch (err) {
-    console.error('[Attindo] Failed to send SIGTERM:', err);
+    console.error('[Attindo] Failed to stop server:', err);
   }
 
-  // Force kill after 5 seconds if still running
-  const forceKillTimer = setTimeout(() => {
-    if (serverProcess) {
-      try {
-        serverProcess.kill('SIGKILL');
-        console.log('[Attindo] Server force-killed');
-      } catch (err) {
-        console.error('[Attindo] Failed to force-kill server:', err);
+  // Force kill after 5 seconds if still running (non-Windows fallback)
+  if (process.platform !== 'win32') {
+    const forceKillTimer = setTimeout(() => {
+      if (serverProcess) {
+        try {
+          serverProcess.kill('SIGKILL');
+          console.log('[Attindo] Server force-killed');
+        } catch (err) {
+          console.error('[Attindo] Failed to force-kill server:', err);
+        }
       }
-    }
-  }, 5000);
+    }, 5000);
 
-  serverProcess.on('close', () => {
-    clearTimeout(forceKillTimer);
-    serverProcess = null;
-  });
+    serverProcess.on('close', () => {
+      clearTimeout(forceKillTimer);
+      serverProcess = null;
+    });
+  } else {
+    serverProcess.on('close', () => {
+      serverProcess = null;
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

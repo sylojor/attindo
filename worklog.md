@@ -1,6 +1,41 @@
 # Attindo Work Log
 
 ---
+Task ID: 7
+Agent: main
+Task: Fix 500 errors on all API routes in Electron production build, rebuild NSIS installer, upload to GitHub
+
+Work Log:
+- Diagnosed root cause of 500 errors: Three issues in the Electron production build
+  1. `.env` file in `.next/standalone/` contained hardcoded Linux DATABASE_URL path
+  2. DATABASE_URL on Windows uses backslashes which Prisma SQLite can't parse
+  3. Template database setup didn't handle missing template gracefully
+- Fixed electron/main.js:
+  - Convert Windows backslashes to forward slashes for DATABASE_URL (`dbPath.replace(/\\/g, '/')`)
+  - Better database setup: ensure userData directory exists before copying
+  - Check template.db file size > 0 before copying (not just existence)
+  - Added `createEmptyDatabase()` function with Prisma db push fallback for schema creation
+  - Added `windowsHide: true` to server spawn options
+  - Fixed Windows process management: uses `taskkill /T /F` instead of SIGTERM/SIGKILL
+- Fixed build script: Added `rm -f .next/standalone/.env` to remove hardcoded Linux path
+- Updated electron-builder.yml:
+  - Added `!.env` filter to extraResources to prevent .env from being packaged
+  - Added `**/*.dll`, `**/*.so`, `**/*.exe` to asarUnpack patterns
+  - Added `@prisma/cli` to asarUnpack
+- Fixed NSIS installer build:
+  - electron-builder's NSIS step produced 215KB corrupt EXE (7z archive not embedded)
+  - Created custom NSIS script (release/installer.nsi) using nsis7z plugin
+  - Manually compiled with makensis from electron-builder cache
+  - Result: Attindo-Setup-2.1.5.exe (114MB, proper NSIS self-extracting archive)
+- Created GitHub release v2.1.5-hotfix with working installer uploaded
+
+Stage Summary:
+- All 500 error root causes fixed (DATABASE_URL path, .env interference, template db handling)
+- NSIS installer now properly built (114MB vs previous 215KB corrupt file)
+- Installer uploaded to: https://github.com/sylojor/attindo/releases/tag/v2.1.5-hotfix
+- Version: 2.1.5
+
+---
 Task ID: 6
 Agent: main
 Task: Fix NSIS installer errors, fix JSON parsing issues, rebuild and upload working EXE installer
