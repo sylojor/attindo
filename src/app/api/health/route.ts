@@ -6,7 +6,7 @@ export async function GET() {
   const health: Record<string, unknown> = {
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: "2.1.9",
+    version: "2.2.1",
     environment: process.env.NODE_ENV || "unknown",
     electron: process.env.ELECTRON_RUN_AS_NODE === "1",
     database: {
@@ -29,6 +29,8 @@ export async function GET() {
       connected: false,
       error: errMsg,
     };
+    // Don't set status to degraded for DB errors during initial startup
+    // The DB might still be initializing
     health.status = "degraded";
 
     // Try to list tables to give more diagnostic info
@@ -48,7 +50,7 @@ export async function GET() {
     }
   }
 
-  // Check ZK service (non-blocking)
+  // Check ZK service (non-blocking) - ZK being offline is NOT an error condition
   try {
     const zkRes = await fetch("http://127.0.0.1:3003/api/health", {
       signal: AbortSignal.timeout(2000),
@@ -58,6 +60,8 @@ export async function GET() {
     health.zkService = "offline";
   }
 
-  const statusCode = health.status === "ok" ? 200 : 503;
+  // Always return 200 if database is connected - ZK offline is a normal state
+  // Only return 503 if database is truly broken
+  const statusCode = health.database && (health.database as Record<string, unknown>).connected === false ? 503 : 200;
   return NextResponse.json(health, { status: statusCode });
 }

@@ -16,7 +16,7 @@ const http = require('http');
 // ---------------------------------------------------------------------------
 const SERVER_PORT = 3456;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
-const APP_VERSION = 'v2.2.0';
+const APP_VERSION = 'v2.2.1';
 const isDev = !app.isPackaged;
 
 // ---------------------------------------------------------------------------
@@ -466,7 +466,7 @@ function startServer() {
   log('[Server] Server process spawned on port', SERVER_PORT, 'PID:', serverProcess.pid);
 }
 
-function waitForServer(maxRetries = 120, intervalMs = 1000) {
+function waitForServer(maxRetries = 300, intervalMs = 1000) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
 
@@ -482,7 +482,10 @@ function waitForServer(maxRetries = 120, intervalMs = 1000) {
             log('[Server] Health response:', body.substring(0, 200));
             resolve(true);
           } else if (attempts < maxRetries) {
-            log('[Server] Health check failed with status', res.statusCode, '- retrying...');
+            // Server returned 500+ - it's starting up, retry
+            if (attempts % 10 === 0) {
+              log('[Server] Health check returned status', res.statusCode, '- retrying... attempt', attempts, '/', maxRetries);
+            }
             setTimeout(tryConnect, intervalMs);
           } else {
             reject(new Error(`Server health check failed after ${maxRetries} attempts. Last status: ${res.statusCode}`));
@@ -491,7 +494,7 @@ function waitForServer(maxRetries = 120, intervalMs = 1000) {
       });
 
       req.on('error', (err) => {
-        if (attempts % 5 === 0) {
+        if (attempts % 10 === 0 || attempts <= 3) {
           log('[Server] Waiting for server... attempt', attempts, '/', maxRetries, '-', err.message);
         }
         if (attempts < maxRetries) {
@@ -501,7 +504,7 @@ function waitForServer(maxRetries = 120, intervalMs = 1000) {
         }
       });
 
-      req.setTimeout(3000, () => {
+      req.setTimeout(5000, () => {
         req.destroy();
         if (attempts < maxRetries) {
           setTimeout(tryConnect, intervalMs);
@@ -819,7 +822,10 @@ async function initialiseApp() {
         serverReady = true;
       } catch (err) {
         logError('[App]', err.message);
-        serverReady = false;
+        // Even if health check times out, try to load the app anyway
+        // The server might still be starting up and become ready shortly
+        log('[App] Health check timed out, but will attempt to load the app anyway...');
+        serverReady = true; // Try loading anyway
       }
     } else {
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -830,18 +836,16 @@ async function initialiseApp() {
     createMainWindow();
 
     // 8. Load the application
-    if (serverReady) {
-      const loadURL = isDev ? 'http://localhost:3000' : SERVER_URL;
-      mainWindow.loadURL(loadURL);
-    } else {
-      // Show error page if server failed to start
-      const logPath = path.join(app.getPath('userData'), 'logs');
-      mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(getErrorHTML(
-        `Server failed to start on port ${SERVER_PORT}.<br><br>` +
-        `Log files: ${logPath}<br><br>` +
-        `Please restart the application. If the problem persists, check the log files.`
-      ))}`);
-    }
+    const loadURL = isDev ? 'http://localhost:3000' : SERVER_URL;
+    mainWindow.loadURL(loadURL);
+
+    // If server isn't ready yet, show a retry banner in the error page
+    mainWindow.webContents.on('did-fail-load', () => {
+      log('[App] Failed to load app, retrying in 3 seconds...');
+      setTimeout(() => {
+        mainWindow.loadURL(loadURL);
+      }, 3000);
+    });
 
     // 9. Once the main window is ready, close splash and show main
     mainWindow.once('ready-to-show', () => {

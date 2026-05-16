@@ -133,9 +133,10 @@ export async function PUT(
         return NextResponse.json(zkData);
       } catch (err: any) {
         await db.device.update({ where: { id }, data: { status: "error" } });
+        const isZKDown = err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed');
         return NextResponse.json(
-          { success: false, message: `ZK service error: ${err.message}` },
-          { status: 502 }
+          { success: false, message: isZKDown ? "ZK service is not running. Start the fingerprint device service first." : `Connection error: ${err.message}` },
+          { status: 503 }
         );
       }
     }
@@ -207,14 +208,15 @@ export async function PUT(
           await db.device.update({ where: { id }, data: { status: "offline" } });
           return NextResponse.json(
             { success: false, message: "Device is offline or unreachable" },
-            { status: 502 }
+            { status: 503 }
           );
         }
       } catch (err: any) {
         await db.device.update({ where: { id }, data: { status: "error" } });
+        const isZKDown = err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed');
         return NextResponse.json(
-          { success: false, message: `ZK service error: ${err.message}` },
-          { status: 502 }
+          { success: false, message: isZKDown ? "ZK service is not running. Start the fingerprint device service first." : `Connection error: ${err.message}` },
+          { status: 503 }
         );
       }
     }
@@ -230,7 +232,8 @@ export async function PUT(
         await db.device.update({ where: { id }, data: { status: "offline" } });
         return NextResponse.json(zkData);
       } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 502 });
+        const isZKDown = err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed');
+        return NextResponse.json({ error: isZKDown ? "ZK service is not running" : err.message }, { status: 503 });
       }
     }
 
@@ -243,7 +246,8 @@ export async function PUT(
         const zkData = await zkRes.json();
         return NextResponse.json(zkData);
       } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 502 });
+        const isZKDown = err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed');
+        return NextResponse.json({ error: isZKDown ? "ZK service is not running" : err.message }, { status: 503 });
       }
     }
 
@@ -255,7 +259,8 @@ export async function PUT(
         const zkData = await zkRes.json();
         return NextResponse.json(zkData);
       } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 502 });
+        const isZKDown = err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed');
+        return NextResponse.json({ error: isZKDown ? "ZK service is not running" : err.message }, { status: 503 });
       }
     }
 
@@ -272,7 +277,8 @@ export async function PUT(
         const zkData = await zkRes.json();
         return NextResponse.json(zkData);
       } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 502 });
+        const isZKDown = err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed');
+        return NextResponse.json({ error: isZKDown ? "ZK service is not running" : err.message }, { status: 503 });
       }
     }
 
