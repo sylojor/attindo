@@ -168,30 +168,14 @@ function LicenseSection() {
           </Label>
           <div className="flex items-center gap-3">
             <Badge
-              className={`text-xs ${
-                fp?.limitReached
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  : fp?.licensed
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-              }`}
+              className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
             >
-              {fp?.limitReached
-                ? t("license.fingerprintLimit")
-                : fp?.licensed
-                  ? t("license.paid")
-                  : t("license.free")}
+              {t("license.free")}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {fp?.slotsUsed ?? 0}/{fp?.maxSlots ?? fp?.freeLimit ?? 4}{" "}
-              {fp?.licensed ? t("license.paid").toLowerCase() : t("license.free").toLowerCase()}
+              {fp?.slotsUsed ?? 0} / ∞ — {t("license.fingerprintLimitDesc")}
             </span>
           </div>
-          {fp?.limitReached && (
-            <p className="text-xs text-red-600 dark:text-red-400">
-              {t("license.fingerprintLimitDesc")}
-            </p>
-          )}
         </div>
 
         <Separator />

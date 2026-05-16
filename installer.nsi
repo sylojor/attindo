@@ -7,7 +7,7 @@
 
 ; ─── Application Info ───
 !define PRODUCT_NAME "Attindo"
-!define PRODUCT_VERSION "2.0.0"
+!define PRODUCT_VERSION "2.2.0"
 !define PRODUCT_PUBLISHER "Attindo"
 !define PRODUCT_WEB_SITE "https://attindo.com"
 !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\Attindo.exe"

@@ -21,18 +21,17 @@ export async function GET() {
       where: { fingerprintId: { not: null }, isActive: true },
     });
 
-    const FREE_FINGERPRINT_LIMIT = 50;
+    const FREE_FINGERPRINT_LIMIT = 99999; // No practical limit
 
-    // Determine max fingerprints allowed
-    let maxFingerprints = FREE_FINGERPRINT_LIMIT;
-    if (fingerprintLicense) {
-      maxFingerprints = fingerprintLicense.maxFingerprints ?? Infinity;
+    // Determine max fingerprints allowed - unlimited for all users
+    let maxFingerprints = Infinity;
+    if (fingerprintLicense && fingerprintLicense.maxFingerprints) {
+      maxFingerprints = fingerprintLicense.maxFingerprints;
     }
 
     const fingerprintSlotsUsed = employeesWithFingerprints;
-    const fingerprintLimitReached =
-      !fingerprintLicense && employeesWithFingerprints >= FREE_FINGERPRINT_LIMIT;
-    const fingerprintLicensed = !!fingerprintLicense;
+    const fingerprintLimitReached = false; // No limit
+    const fingerprintLicensed = true; // Always licensed
 
     const payrollLicensed = !!payrollLicense;
 

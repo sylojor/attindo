@@ -16,7 +16,7 @@ const http = require('http');
 // ---------------------------------------------------------------------------
 const SERVER_PORT = 3456;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
-const APP_VERSION = 'v2.1.9';
+const APP_VERSION = 'v2.2.0';
 const isDev = !app.isPackaged;
 
 // ---------------------------------------------------------------------------
@@ -466,7 +466,7 @@ function startServer() {
   log('[Server] Server process spawned on port', SERVER_PORT, 'PID:', serverProcess.pid);
 }
 
-function waitForServer(maxRetries = 60, intervalMs = 1000) {
+function waitForServer(maxRetries = 120, intervalMs = 1000) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
 
