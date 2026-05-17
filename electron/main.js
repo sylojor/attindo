@@ -581,24 +581,9 @@ function startZKService() {
   log('[ZK-Service] Starting ZKTeco fingerprint device service...');
   log('[ZK-Service] Service path:', zkServicePath);
 
-  // Install ZK service dependencies on first run if node_modules don't exist
-  const zkNodeModules = path.join(zkServicePath, 'node_modules');
-  if (!fs.existsSync(zkNodeModules)) {
-    log('[ZK-Service] Installing dependencies (first run)...');
-    try {
-      const { execSync } = require('child_process');
-      execSync('npm install --production', {
-        cwd: zkServicePath,
-        stdio: 'pipe',
-        timeout: 60000,
-        windowsHide: true,
-      });
-      log('[ZK-Service] Dependencies installed successfully');
-    } catch (err) {
-      logError('[ZK-Service] Failed to install dependencies:', err);
-      log('[ZK-Service] Will try to start service anyway...');
-    }
-  }
+  // The ZK service is pre-compiled to a single bundled JS file (index.js)
+  // during the build process using `bun build index.ts --outfile index.js --target=node`
+  // No npm install is needed since all dependencies are bundled into index.js
 
   const env = {
     ...process.env,
@@ -606,31 +591,31 @@ function startZKService() {
     NODE_ENV: 'production',
   };
 
-  const zkIndexPath = path.join(zkServicePath, 'index.ts');
+  // Use the pre-compiled JavaScript file (index.js) instead of TypeScript (index.ts)
+  // The index.js is built during `bun run build` using `bun build index.ts --outfile index.js --target=node`
+  const zkIndexJs = path.join(zkServicePath, 'index.js');
+  const zkIndexTs = path.join(zkServicePath, 'index.ts');
 
   try {
-    // Try running with bun first (faster), fallback to node
-    // On Windows, the user may have bun installed or we use node
-    const useBun = process.platform === 'win32' ? false : true;
+    // Prefer the compiled JS file, fallback to TS (which requires bun)
+    const useJs = fs.existsSync(zkIndexJs);
+    const entryFile = useJs ? zkIndexJs : zkIndexTs;
     
-    if (useBun) {
-      zkServiceProcess = spawn('bun', ['run', zkIndexPath], {
+    log('[ZK-Service] Using entry file:', entryFile);
+
+    if (useJs) {
+      // Run the compiled JavaScript with Node.js (works on all platforms)
+      zkServiceProcess = spawn(process.execPath, [entryFile], {
         cwd: zkServicePath,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       });
     } else {
-      // Use node with tsx for TypeScript support
-      // First, ensure tsx is available
-      const standaloneNodeModules = path.join(process.resourcesPath, 'standalone', 'node_modules');
-      const envWithNodePath = {
-        ...env,
-        NODE_PATH: standaloneNodeModules,
-      };
-      zkServiceProcess = spawn(process.execPath, ['--import', 'tsx', zkIndexPath], {
+      // Fallback: try running with bun (development mode)
+      zkServiceProcess = spawn('bun', ['run', zkIndexTs], {
         cwd: zkServicePath,
-        env: envWithNodePath,
+        env,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       });

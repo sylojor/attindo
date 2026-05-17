@@ -1,9 +1,12 @@
 {
   "name": "zk-sync-service",
-  "version": "2.1.0",
+  "version": "2.3.1",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "bun index.ts"
+    "dev": "bun --hot index.ts",
+    "build": "bun build index.ts --outfile index.js --target=node",
+    "start": "node index.js"
   },
   "dependencies": {
     "socket.io": "^4.8.1",

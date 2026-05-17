@@ -23,6 +23,8 @@ extraResources:
     to: zk-sync-service
     filter:
       - "**/*"
+      - "!index.ts"
+      - "!bun.lock"
   - from: prisma
     to: prisma
     filter:
