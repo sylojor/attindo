@@ -40,3 +40,27 @@ Stage Summary:
 - Attindo v2.3.0 released with universal device support
 - GitHub release: https://github.com/sylojor/attindo/releases/tag/attindo-v230-stable
 - Key changes: device-agnostic, remote IP support, no device limit, ZK service auto-start
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix v2.3.0 runtime crash and rebuild installer (v2.3.1)
+
+Work Log:
+- Investigated the "failed to load data" / "unicode-identifier-index.js missing module" runtime error
+- Root cause: Next.js 16 Turbopack standalone build missing server chunks (84 of 167 chunks copied)
+- Fixed by switching production build from turbopack to webpack (`next build --webpack`)
+- Verified webpack build: all 7 server chunks present in both full build and standalone output
+- Tested standalone server: health check returns "ok", dashboard API returns data, main page renders correctly
+- Updated version from 2.3.0 to 2.3.1 in package.json, electron/main.js, health API route
+- electron-builder NSIS build failed due to missing wine on Linux
+- Created manual NSIS installer using linux makensis binary directly
+- Built Attindo-Setup-2.3.1.exe (163MB, PE32 Nullsoft Installer)
+- Pushed to GitHub and created release at attindo-v2.3.1 tag
+- Uploaded installer to GitHub releases
+
+Stage Summary:
+- Critical runtime crash FIXED - webpack produces complete standalone build
+- Attindo v2.3.1 released with bug fix
+- GitHub release: https://github.com/sylojor/attindo/releases/tag/attindo-v2.3.1
+- Installer: Attindo-Setup-2.3.1.exe (163MB)
