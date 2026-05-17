@@ -17,6 +17,7 @@
  * - ZKTeco K14/K20/K40 (Fingerprint + Card + Password)
  * - ZKTeco X6/X7/X8 (Fingerprint + Card + Password)
  * - ZKTeco T4-C, T5-C, TF1700 (Fingerprint + Card + Password)
+ * - ZKTeco OF109 (Fingerprint + Card + Password)
  * - And all ZKTeco devices using the ZK communication protocol (port 4370)
  * 
  * Features:
@@ -184,6 +185,16 @@ function detectDeviceCapabilities(deviceName: string | null): { model: string; c
   // TF1700 - fingerprint + card
   if (name.includes("TF1700") || name.includes("TF-1700")) {
     return { model: "TF1700", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // OF109 - optical fingerprint reader
+  if (name.includes("OF109") || name.includes("OF-109")) {
+    return { model: "OF109", capabilities: ["fingerprint", "card", "password"] };
+  }
+
+  // OF series (generic) - optical fingerprint reader
+  if (name.includes("OF") && (name.includes("10") || name.includes("20") || name.includes("40"))) {
+    return { model: "OF-Series", capabilities: ["fingerprint", "card", "password"] };
   }
 
   // Default: assume basic fingerprint support

@@ -26,6 +26,10 @@ import {
   Hand,
   CreditCard,
   ScanSearch,
+  Globe,
+  Network,
+  Copy,
+  Check,
 } from "lucide-react";
 import {
   Card,
@@ -90,6 +94,11 @@ const MAX_DEVICES = 6;
 
 // Device type configuration with models and capabilities
 const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities: string[] }> = {
+  AutoDetect: {
+    label: "🔧 Auto-Detect",
+    models: "Any ZKTeco Device",
+    capabilities: ["fingerprint"],
+  },
   MB20: {
     label: "ZKTeco MB20",
     models: "MB20",
@@ -124,6 +133,16 @@ const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities
     label: "ZKTeco FaceDepot",
     models: "FaceDepot7E/10E",
     capabilities: ["face", "card", "password"],
+  },
+  OF109: {
+    label: "ZKTeco OF109",
+    models: "OF109",
+    capabilities: ["fingerprint", "card", "password"],
+  },
+  OFSeries: {
+    label: "ZKTeco OF-Series",
+    models: "OF10/OF20/OF40",
+    capabilities: ["fingerprint", "card", "password"],
   },
   ZKTeco: {
     label: "ZKTeco (F-Series)",
@@ -202,7 +221,7 @@ const deviceSchema = z.object({
   name: z.string().min(1, "Device name is required"),
   ip: z.string().min(1, "IP address is required"),
   port: z.coerce.number().min(1).max(65535).default(4370),
-  deviceType: z.string().default("ZKTeco"),
+  deviceType: z.string().default("AutoDetect"),
 });
 
 type DeviceFormValues = z.infer<typeof deviceSchema>;
@@ -268,6 +287,43 @@ export function DevicesView() {
   const [restartingId, setRestartingId] = useState<string | null>(null);
   const [syncingTimeId, setSyncingTimeId] = useState<string | null>(null);
   const [detectingId, setDetectingId] = useState<string | null>(null);
+  const [copiedIp, setCopiedIp] = useState<string | null>(null);
+
+  // Network info query
+  const { data: networkInfo } = useQuery<{
+    hostname: string;
+    internalIps: Array<{ interface: string; address: string; family: string }>;
+    loopbackIps: Array<{ interface: string; address: string; family: string }>;
+    externalIp: string | null;
+    port: string;
+    zkServicePort: number;
+    zkDeviceDefaultPort: number;
+  }>({
+    queryKey: ["network-info"],
+    queryFn: async () => {
+      try {
+        return await fetchJson<typeof networkInfo>("/api/network-info");
+      } catch {
+        return {
+          hostname: "",
+          internalIps: [],
+          loopbackIps: [],
+          externalIp: null,
+          port: "3000",
+          zkServicePort: 3003,
+          zkDeviceDefaultPort: 4370,
+        };
+      }
+    },
+    staleTime: 60000,
+  });
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIp(label);
+      setTimeout(() => setCopiedIp(null), 2000);
+    });
+  };
 
   // Queries
   const { data: devices = [], isLoading } = useQuery<Device[]>({
@@ -285,7 +341,7 @@ export function DevicesView() {
       name: "",
       ip: "",
       port: 4370,
-      deviceType: "ZKTeco",
+      deviceType: "AutoDetect",
     },
   });
 
@@ -769,11 +825,22 @@ export function DevicesView() {
                   {/* Show capabilities preview */}
                   {watchedDeviceType && DEVICE_TYPES[watchedDeviceType] && (
                     <div className="rounded-md border p-3 bg-muted/30">
-                      <p className="text-xs font-medium mb-1.5">{t("devices.supportedModes")}</p>
-                      <CapabilitiesBadges
-                        capabilities={DEVICE_TYPES[watchedDeviceType].capabilities}
-                        size="sm"
-                      />
+                      {watchedDeviceType === "AutoDetect" ? (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium">Auto-Detect Mode</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            The system will automatically detect the device model and capabilities when you test the connection. Works with any ZKTeco device (OF109, MB20, F18, etc.)
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs font-medium mb-1.5">{t("devices.supportedModes")}</p>
+                          <CapabilitiesBadges
+                            capabilities={DEVICE_TYPES[watchedDeviceType].capabilities}
+                            size="sm"
+                          />
+                        </>
+                      )}
                     </div>
                   )}
                   <DialogFooter>
@@ -819,6 +886,70 @@ export function DevicesView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Network Information Card */}
+      {networkInfo && (networkInfo.internalIps.length > 0 || networkInfo.externalIp) && (
+        <Card className="border-sky-200 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-950/20">
+          <CardContent className="p-3">
+            <div className="flex items-start gap-3">
+              <Network className="h-5 w-5 text-sky-600 mt-0.5 shrink-0" />
+              <div className="text-sm flex-1">
+                <p className="font-medium text-sky-700 dark:text-sky-400">
+                  Network Information
+                </p>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  Use these IPs to configure fingerprint devices on your network or remote locations
+                </p>
+                <div className="mt-2 space-y-1.5">
+                  {/* Internal IPs */}
+                  {networkInfo.internalIps.filter(ip => ip.family === "IPv4").map((ip) => (
+                    <div key={ip.interface} className="flex items-center gap-2 text-xs">
+                      <Wifi className="h-3 w-3 text-sky-500 shrink-0" />
+                      <span className="text-muted-foreground min-w-[80px]">{ip.interface}:</span>
+                      <span className="font-mono font-medium">{ip.address}</span>
+                      <span className="text-[9px] text-muted-foreground">(LAN)</span>
+                      <button
+                        onClick={() => copyToClipboard(ip.address, `int-${ip.interface}`)}
+                        className="ml-auto p-0.5 hover:bg-sky-100 dark:hover:bg-sky-900/30 rounded"
+                      >
+                        {copiedIp === `int-${ip.interface}` ? (
+                          <Check className="h-3 w-3 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3 w-3 text-muted-foreground" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                  {/* External IP */}
+                  {networkInfo.externalIp && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Globe className="h-3 w-3 text-orange-500 shrink-0" />
+                      <span className="text-muted-foreground min-w-[80px]">Public IP:</span>
+                      <span className="font-mono font-medium text-orange-600 dark:text-orange-400">{networkInfo.externalIp}</span>
+                      <span className="text-[9px] text-muted-foreground">(WAN/Remote)</span>
+                      <button
+                        onClick={() => copyToClipboard(networkInfo.externalIp!, "ext")}
+                        className="ml-auto p-0.5 hover:bg-sky-100 dark:hover:bg-sky-900/30 rounded"
+                      >
+                        {copiedIp === "ext" ? (
+                          <Check className="h-3 w-3 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3 w-3 text-muted-foreground" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {networkInfo.externalIp && (
+                  <p className="text-[10px] text-muted-foreground mt-2 border-t border-sky-200 dark:border-sky-800/50 pt-1.5">
+                    💡 For remote devices at other locations: Use the Public IP ({networkInfo.externalIp}) with port forwarding on port {networkInfo.zkDeviceDefaultPort}, or configure the device with a static IP and add it directly.
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Device Cards */}
       {devices.length === 0 ? (

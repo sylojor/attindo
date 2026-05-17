@@ -28,6 +28,7 @@ export async function GET() {
 
 // Default capabilities based on device type
 const defaultCapabilities: Record<string, string> = {
+  "AutoDetect": "fingerprint",
   "MB20": "fingerprint,face,palm,card,password",
   "ProFace": "face,palm,card,password",
   "SpeedFace": "fingerprint,face,card",
@@ -35,6 +36,8 @@ const defaultCapabilities: Record<string, string> = {
   "G1": "fingerprint,face,card",
   "iFace": "fingerprint,face",
   "FaceDepot": "face,card,password",
+  "OF109": "fingerprint,card,password",
+  "OFSeries": "fingerprint,card,password",
   "ZKTeco": "fingerprint,card,password",
   "inBio": "fingerprint,card,password",
   "KSeries": "fingerprint,card,password",
@@ -78,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine capabilities: explicit > deviceModel-based > deviceType-based
-    const resolvedDeviceType = deviceType || "ZKTeco";
+    const resolvedDeviceType = deviceType || "AutoDetect";
     const resolvedCapabilities = capabilities
       || (deviceModel && defaultCapabilities[deviceModel])
       || defaultCapabilities[resolvedDeviceType]
