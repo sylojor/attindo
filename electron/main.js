@@ -16,7 +16,7 @@ const http = require('http');
 // ---------------------------------------------------------------------------
 const SERVER_PORT = 3456;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
-const APP_VERSION = 'v2.3.0';
+const APP_VERSION = 'v2.3.1';
 const isDev = !app.isPackaged;
 
 // ---------------------------------------------------------------------------

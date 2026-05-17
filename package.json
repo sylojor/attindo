@@ -1,6 +1,6 @@
 {
   "name": "attindo",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Attindo - Professional HR, Payroll & Attendance Management System with ZKTeco Fingerprint Device Support",
   "main": "electron/main.js",
   "author": "Attindo",
@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ && rm -rf .next/standalone/node_modules/@img/sharp-linux-x64 .next/standalone/node_modules/@img/sharp-linuxmusl-x64 .next/standalone/node_modules/@img/sharp-libvips-linux-x64 .next/standalone/node_modules/@img/sharp-libvips-linuxmusl-x64 && mkdir -p .next/standalone/node_modules/@img && (cp -r node_modules/@img/sharp-win32-x64 .next/standalone/node_modules/@img/ 2>/dev/null || true) && (cp -r node_modules/@img/sharp-libvips-win32-x64 .next/standalone/node_modules/@img/ 2>/dev/null || true) && rm -f .next/standalone/.env && DATABASE_URL=\"file:./build-resources/db/template.db\" prisma db push --accept-data-loss --skip-generate",
+    "build": "next build --webpack && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ && rm -rf .next/standalone/node_modules/@img/sharp-linux-x64 .next/standalone/node_modules/@img/sharp-linuxmusl-x64 .next/standalone/node_modules/@img/sharp-libvips-linux-x64 .next/standalone/node_modules/@img/sharp-libvips-linuxmusl-x64 && mkdir -p .next/standalone/node_modules/@img && (cp -r node_modules/@img/sharp-win32-x64 .next/standalone/node_modules/@img/ 2>/dev/null || true) && (cp -r node_modules/@img/sharp-libvips-win32-x64 .next/standalone/node_modules/@img/ 2>/dev/null || true) && rm -f .next/standalone/.env && DATABASE_URL=\"file:./build-resources/db/template.db\" prisma db push --accept-data-loss --skip-generate",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push",
