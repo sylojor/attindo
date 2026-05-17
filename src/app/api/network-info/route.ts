@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { execSync } from "child_process";
+import https from "https";
 import os from "os";
 
 // GET /api/network-info - Returns server network information (internal IPs + external IP)
@@ -12,7 +12,7 @@ export async function GET() {
     for (const [name, nets] of Object.entries(interfaces)) {
       if (!nets) continue;
       for (const net of nets) {
-        // Skip internal (loopback) and non-IPv4 addresses for the main list
+        // Skip internal (loopback) addresses for the main list
         if (!net.internal) {
           internalIps.push({
             interface: name,
@@ -38,17 +38,33 @@ export async function GET() {
       }
     }
 
-    // Try to get external/public IP (with timeout)
+    // Try to get external/public IP using Node.js https (works on Windows too)
     let externalIp: string | null = null;
     try {
-      const result = execSync(
-        "curl -s --connect-timeout 3 --max-time 5 https://api.ipify.org 2>/dev/null || curl -s --connect-timeout 3 --max-time 5 https://ifconfig.me 2>/dev/null || curl -s --connect-timeout 3 --max-time 5 https://ipecho.net/plain 2>/dev/null",
-        { encoding: "utf-8", timeout: 8000 }
-      ).trim();
-      // Validate it looks like an IP
-      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(result)) {
-        externalIp = result;
-      }
+      externalIp = await new Promise<string | null>((resolve) => {
+        const timeout = setTimeout(() => {
+          req.destroy();
+          resolve(null);
+        }, 5000);
+
+        const req = https.get("https://api.ipify.org", (res) => {
+          let data = "";
+          res.on("data", (chunk) => { data += chunk; });
+          res.on("end", () => {
+            clearTimeout(timeout);
+            const ip = data.trim();
+            if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+              resolve(ip);
+            } else {
+              resolve(null);
+            }
+          });
+        });
+        req.on("error", () => {
+          clearTimeout(timeout);
+          resolve(null);
+        });
+      });
     } catch {
       // External IP detection failed (no internet or firewall)
     }

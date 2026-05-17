@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const MAX_DEVICES = 6; // Free tier limit
+// No device limit - unlimited devices supported
 
 // GET /api/devices - List all devices with status
 export async function GET() {
@@ -59,14 +59,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check device limit
-    const deviceCount = await db.device.count();
-    if (deviceCount >= MAX_DEVICES) {
-      return NextResponse.json(
-        { error: `Maximum ${MAX_DEVICES} devices allowed (free tier). Upgrade for more.` },
-        { status: 409 }
-      );
-    }
+    // No device limit - unlimited devices
 
     // Check for duplicate IP+port
     const devicePort = port || 4370;

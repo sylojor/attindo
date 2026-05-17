@@ -16,7 +16,7 @@ const http = require('http');
 // ---------------------------------------------------------------------------
 const SERVER_PORT = 3456;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
-const APP_VERSION = 'v2.2.1';
+const APP_VERSION = 'v2.3.0';
 const isDev = !app.isPackaged;
 
 // ---------------------------------------------------------------------------
@@ -77,6 +77,7 @@ if (!gotTheLock) {
 let mainWindow = null;
 let splashWindow = null;
 let serverProcess = null;
+let zkServiceProcess = null;
 
 // ---------------------------------------------------------------------------
 // Database Setup
@@ -562,6 +563,128 @@ function stopServer() {
 }
 
 // ---------------------------------------------------------------------------
+// ZK Sync Service Management (Fingerprint Device Service)
+// ---------------------------------------------------------------------------
+function startZKService() {
+  if (isDev) {
+    log('[ZK-Service] Running in development mode - ZK service should be started separately');
+    return;
+  }
+
+  const zkServicePath = path.join(process.resourcesPath, 'zk-sync-service');
+
+  if (!fs.existsSync(zkServicePath)) {
+    log('[ZK-Service] ZK sync service not found at:', zkServicePath, '- fingerprint devices will not work');
+    return;
+  }
+
+  log('[ZK-Service] Starting ZKTeco fingerprint device service...');
+  log('[ZK-Service] Service path:', zkServicePath);
+
+  // Install ZK service dependencies on first run if node_modules don't exist
+  const zkNodeModules = path.join(zkServicePath, 'node_modules');
+  if (!fs.existsSync(zkNodeModules)) {
+    log('[ZK-Service] Installing dependencies (first run)...');
+    try {
+      const { execSync } = require('child_process');
+      execSync('npm install --production', {
+        cwd: zkServicePath,
+        stdio: 'pipe',
+        timeout: 60000,
+        windowsHide: true,
+      });
+      log('[ZK-Service] Dependencies installed successfully');
+    } catch (err) {
+      logError('[ZK-Service] Failed to install dependencies:', err);
+      log('[ZK-Service] Will try to start service anyway...');
+    }
+  }
+
+  const env = {
+    ...process.env,
+    ELECTRON_NO_ASAR: '1',
+    NODE_ENV: 'production',
+  };
+
+  const zkIndexPath = path.join(zkServicePath, 'index.ts');
+
+  try {
+    // Try running with bun first (faster), fallback to node
+    // On Windows, the user may have bun installed or we use node
+    const useBun = process.platform === 'win32' ? false : true;
+    
+    if (useBun) {
+      zkServiceProcess = spawn('bun', ['run', zkIndexPath], {
+        cwd: zkServicePath,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+    } else {
+      // Use node with tsx for TypeScript support
+      // First, ensure tsx is available
+      const standaloneNodeModules = path.join(process.resourcesPath, 'standalone', 'node_modules');
+      const envWithNodePath = {
+        ...env,
+        NODE_PATH: standaloneNodeModules,
+      };
+      zkServiceProcess = spawn(process.execPath, ['--import', 'tsx', zkIndexPath], {
+        cwd: zkServicePath,
+        env: envWithNodePath,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+    }
+
+    zkServiceProcess.stdout.on('data', (data) => {
+      log('[ZK-Service:out]', data.toString().trim());
+    });
+
+    zkServiceProcess.stderr.on('data', (data) => {
+      logError('[ZK-Service:err]', data.toString().trim());
+    });
+
+    zkServiceProcess.on('error', (err) => {
+      logError('[ZK-Service] Failed to start ZK service:', err);
+      log('[ZK-Service] Fingerprint device features will be unavailable');
+    });
+
+    zkServiceProcess.on('close', (code) => {
+      log('[ZK-Service] Process exited with code:', code);
+      zkServiceProcess = null;
+    });
+
+    log('[ZK-Service] ZK service process spawned, PID:', zkServiceProcess.pid);
+  } catch (err) {
+    logError('[ZK-Service] Failed to spawn ZK service:', err);
+    log('[ZK-Service] Fingerprint device features will be unavailable');
+  }
+}
+
+function stopZKService() {
+  if (!zkServiceProcess) return;
+
+  log('[ZK-Service] Stopping ZK service process...');
+
+  try {
+    if (process.platform === 'win32') {
+      const { execSync } = require('child_process');
+      try {
+        execSync(`taskkill /pid ${zkServiceProcess.pid} /T /F`, { stdio: 'ignore' });
+      } catch (e) {
+        // Ignore errors
+      }
+    } else {
+      zkServiceProcess.kill('SIGTERM');
+    }
+  } catch (err) {
+    logError('[ZK-Service] Failed to stop ZK service:', err);
+  }
+
+  zkServiceProcess = null;
+}
+
+// ---------------------------------------------------------------------------
 // Error Page HTML
 // ---------------------------------------------------------------------------
 function getErrorHTML(errorMsg) {
@@ -811,10 +934,13 @@ async function initialiseApp() {
     // 4. Start the standalone Next.js server (production only)
     startServer();
 
-    // 5. Show splash screen while waiting
+    // 5. Start the ZK fingerprint device service (production only)
+    startZKService();
+
+    // 6. Show splash screen while waiting
     createSplashWindow();
 
-    // 6. Wait for the server to become available
+    // 7. Wait for the server to become available
     let serverReady = false;
     if (!isDev) {
       try {
@@ -861,6 +987,7 @@ async function initialiseApp() {
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     stopServer();
+    stopZKService();
     if (logStream) {
       try { logStream.end(); } catch (e) {}
     }

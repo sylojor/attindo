@@ -90,84 +90,15 @@ import { useTranslation } from "@/hooks/use-translation";
 import { fetchJson } from "@/lib/utils";
 import { format } from "date-fns";
 
-const MAX_DEVICES = 6;
+const MAX_DEVICES = 999; // No practical limit
 
-// Device type configuration with models and capabilities
+// Device type is now auto-detected - no need to specify
+// This is kept for backward compatibility but AutoDetect is the default
 const DEVICE_TYPES: Record<string, { label: string; models: string; capabilities: string[] }> = {
   AutoDetect: {
-    label: "🔧 Auto-Detect",
+    label: "🔧 Auto-Detect (Recommended)",
     models: "Any ZKTeco Device",
     capabilities: ["fingerprint"],
-  },
-  MB20: {
-    label: "ZKTeco MB20",
-    models: "MB20",
-    capabilities: ["fingerprint", "face", "palm", "card", "password"],
-  },
-  ProFace: {
-    label: "ZKTeco ProFace X",
-    models: "ProFace-X/XD",
-    capabilities: ["face", "palm", "card", "password"],
-  },
-  SpeedFace: {
-    label: "ZKTeco SpeedFace",
-    models: "SpeedFace-V4L/V5L/V5L-Pro",
-    capabilities: ["fingerprint", "face", "card"],
-  },
-  uFace: {
-    label: "ZKTeco uFace",
-    models: "uFace202/302/402",
-    capabilities: ["fingerprint", "face", "card"],
-  },
-  G1: {
-    label: "ZKTeco G1",
-    models: "G1/G1-Pro",
-    capabilities: ["fingerprint", "face", "card"],
-  },
-  iFace: {
-    label: "ZKTeco iFace",
-    models: "iFace302/402",
-    capabilities: ["fingerprint", "face"],
-  },
-  FaceDepot: {
-    label: "ZKTeco FaceDepot",
-    models: "FaceDepot7E/10E",
-    capabilities: ["face", "card", "password"],
-  },
-  OF109: {
-    label: "ZKTeco OF109",
-    models: "OF109",
-    capabilities: ["fingerprint", "card", "password"],
-  },
-  OFSeries: {
-    label: "ZKTeco OF-Series",
-    models: "OF10/OF20/OF40",
-    capabilities: ["fingerprint", "card", "password"],
-  },
-  ZKTeco: {
-    label: "ZKTeco (F-Series)",
-    models: "F16/F18/F22/F22-Pro",
-    capabilities: ["fingerprint", "card", "password"],
-  },
-  inBio: {
-    label: "ZKTeco inBio",
-    models: "inBio160/260/460",
-    capabilities: ["fingerprint", "card", "password"],
-  },
-  KSeries: {
-    label: "ZKTeco K-Series",
-    models: "K14/K20/K40",
-    capabilities: ["fingerprint", "card", "password"],
-  },
-  XSeries: {
-    label: "ZKTeco X-Series",
-    models: "X6/X7/X8",
-    capabilities: ["fingerprint", "card", "password"],
-  },
-  ZK: {
-    label: "ZK Generic (T-Series/Other)",
-    models: "T4-C/T5-C/TF1700/Other",
-    capabilities: ["fingerprint", "card", "password"],
   },
 };
 
@@ -778,7 +709,7 @@ export function DevicesView() {
                         <FormItem>
                           <FormLabel>{t("devices.ipAddress")} *</FormLabel>
                           <FormControl>
-                            <Input placeholder="192.168.1.201" {...field} />
+                            <Input placeholder="192.168.1.201 or external IP" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -798,51 +729,21 @@ export function DevicesView() {
                       )}
                     />
                   </div>
-                  <FormField
-                    control={addForm.control}
-                    name="deviceType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("devices.deviceModel")}</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Object.entries(DEVICE_TYPES).map(([key, config]) => (
-                              <SelectItem key={key} value={key}>
-                                {config.label} ({config.models})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {/* Show capabilities preview */}
-                  {watchedDeviceType && DEVICE_TYPES[watchedDeviceType] && (
-                    <div className="rounded-md border p-3 bg-muted/30">
-                      {watchedDeviceType === "AutoDetect" ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium">Auto-Detect Mode</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            The system will automatically detect the device model and capabilities when you test the connection. Works with any ZKTeco device (OF109, MB20, F18, etc.)
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-xs font-medium mb-1.5">{t("devices.supportedModes")}</p>
-                          <CapabilitiesBadges
-                            capabilities={DEVICE_TYPES[watchedDeviceType].capabilities}
-                            size="sm"
-                          />
-                        </>
-                      )}
+                  {/* Auto-detect info - device type is always auto-detected */}
+                  <div className="rounded-md border p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium flex items-center gap-1.5">
+                        <ScanSearch className="h-3.5 w-3.5 text-emerald-600" />
+                        Auto-Detect Mode
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        The system will automatically detect the device model and capabilities when you test the connection. Works with any ZKTeco device (OF109, MB20, F18, etc.) — local or remote.
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        💡 For remote devices at other locations, enter the external/static IP and make sure port {networkInfo?.zkDeviceDefaultPort || 4370} is forwarded.
+                      </p>
                     </div>
-                  )}
+                  </div>
                   <DialogFooter>
                     <Button
                       type="button"
@@ -866,20 +767,20 @@ export function DevicesView() {
         </div>
       </div>
 
-      {/* Supported Devices Info Banner */}
+      {/* Universal Device Support Banner */}
       <Card className="border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20">
         <CardContent className="p-3">
           <div className="flex items-start gap-3">
             <Shield className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="font-medium text-emerald-700 dark:text-emerald-400">
-                {t("devices.zkBanner.title")}
+                Universal ZKTeco Device Support
               </p>
               <p className="text-muted-foreground text-xs mt-0.5">
-                {t("devices.zkBanner.compat")}
+                Auto-detects any ZKTeco device — just enter the IP address. Works with local network devices and remote devices with static IPs. No need to select device type.
               </p>
               <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[10px] text-muted-foreground">{t("devices.zkBanner.verification")}</span>
+                <span className="text-[10px] text-muted-foreground">Supported verification modes:</span>
                 <CapabilitiesBadges capabilities={["fingerprint", "face", "palm", "card", "password"]} size="xs" />
               </div>
             </div>

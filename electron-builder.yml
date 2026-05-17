@@ -19,6 +19,10 @@ extraResources:
     to: standalone/node_modules
     filter:
       - "**/*"
+  - from: mini-services/zk-sync-service
+    to: zk-sync-service
+    filter:
+      - "**/*"
   - from: prisma
     to: prisma
     filter:

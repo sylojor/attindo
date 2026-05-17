@@ -1,26 +1,20 @@
 /**
- * Attindo ZKTeco Sync Service v2.1
+ * Attindo ZKTeco Sync Service v2.3
  * 
- * Official ZKTeco/ZK multi-biometric device communication service.
+ * Universal ZKTeco/ZK biometric device communication service.
  * Uses node-zklib for real TCP communication on port 4370.
  * 
- * Officially Supported Devices:
- * - ZKTeco MB20 (Multi-Biometric: Fingerprint + Face + Palm + Card + Password)
- * - ZKTeco ProFace X/XD (Face + Palm + Card + Password)
- * - ZKTeco SpeedFace-V4L, SpeedFace-V5L, SpeedFace-V5L-Pro (Fingerprint + Face + Card)
- * - ZKTeco uFace202/302/402 (Fingerprint + Face + Card)
- * - ZKTeco G1/G1-Pro (Fingerprint + Face + Card)
- * - ZKTeco iFace302/402 (Fingerprint + Face)
- * - ZKTeco FaceDepot7E/10E (Face + Card + Password)
- * - ZKTeco F16, F18, F22, F22-Pro (Fingerprint + Card + Password)
- * - ZKTeco inBio160/260/460 (Fingerprint + Card + Password)
- * - ZKTeco K14/K20/K40 (Fingerprint + Card + Password)
- * - ZKTeco X6/X7/X8 (Fingerprint + Card + Password)
- * - ZKTeco T4-C, T5-C, TF1700 (Fingerprint + Card + Password)
- * - ZKTeco OF109 (Fingerprint + Card + Password)
- * - And all ZKTeco devices using the ZK communication protocol (port 4370)
+ * Supports ALL ZKTeco devices automatically - no need to specify device type:
+ * - Any device using ZK communication protocol (port 4370) is auto-detected
+ * - Capabilities are automatically detected when connecting
+ * - Works with local LAN devices AND remote/external IP devices
+ * - Supports: OF109, MB20, F18, F22, inBio, SpeedFace, uFace, iFace,
+ *   ProFace, FaceDepot, K-Series, X-Series, T-Series, TF1700, and ALL other
+ *   ZKTeco/ZK devices
  * 
  * Features:
+ * - Auto-detect any ZKTeco device (no type selection needed)
+ * - Local AND remote device support (static/external IPs)
  * - Real device connection/disconnection
  * - Attendance log download (with auto-clear)
  * - Employee upload/delete on device
@@ -43,7 +37,7 @@ import { Server } from "socket.io";
 import ZKLib from "node-zklib";
 
 const PORT = 3003;
-const CONNECT_TIMEOUT = 10000; // 10 seconds
+const CONNECT_TIMEOUT = 20000; // 20 seconds (increased for remote/external devices)
 const DEFAULT_ZK_PORT = 4370;
 
 // ─── Types ───
